@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { Product } from '@/services/ProductService/productService';
 
 type ProductItemProps = {
-  product: Product;
+  product: Product; // 🎯 NHẬN: ProductItem nhận product từ component cha (ProductList)
 }
 
 const ProductItem = ({ product }: ProductItemProps) => {
@@ -20,55 +20,66 @@ const ProductItem = ({ product }: ProductItemProps) => {
   };
 
   return (
-    <div 
-      className="bg-white rounded-lg overflow-hidden hover:shadow-lg transition-shadow duration-300"
-      style={{ 
-        border: '1px solid rgba(234, 236, 240, 1)',
-        margin: '5px 10px 5px 0',
-        padding: '10px',
-        height: '563px',
-        width: '563px'
-      }}
-    >
-      <Link href={`/products/${product.id}`}>
-        <div className="relative h-48 w-full bg-gray-100">
-          <Image 
-            src={product.imageUrl || '/placeholder.jpg'} 
-            alt={product.name}
-            fill
-            className="object-cover"
-            onError={(e) => {
-              // Fallback image if imageUrl fails to load
-              const target = e.target as HTMLImageElement;
-              target.src = '/placeholder.jpg';
-            }}
-          />
-        </div>
-        <div className="p-4">
-          {/* Category Badge */}
-          <span className="inline-block bg-red-100 text-red-600 text-xs font-medium px-2 py-1 rounded-full mb-2">
-            {getCategoryName(product.categoryId)}
-          </span>
+    <div className="rounded-lg overflow-hidden transition-shadow group">
+      <div 
+        className="bg-white rounded-lg overflow-hidden custom-shadow-hover transition-all duration-300"
+        style={{ 
+          border: '1px solid rgba(234, 236, 240, 1)',
+          margin: '5px 10px 5px 0',
+          padding: '20px 10px 10px 10px',
+          height: '563px'
+        }}
+      >
+        {/* 🚀 TRUYỀN: Khi user click, truyền product.id qua URL */}
+        <Link href={`/products/${product.id}`}>
+          {/* 
+            ⭐ QUAN TRỌNG: Đây là nơi TRUYỀN dữ liệu!
+            - product.id được đưa vào URL: /products/507f1f77bcf86cd799439011
+            - Next.js sẽ parse ID này từ URL và truyền vào page component
+          */}
           
-          <h3 className="font-semibold text-gray-800 text-sm mb-2 line-clamp-2 h-10">
-            {product.name}
-          </h3>
-          <p className="text-gray-600 text-xs line-clamp-2 mb-3">
-            {product.description}
-          </p>
-          <p className="text-red-600 font-bold text-lg">
-            {product.price.toLocaleString('vi-VN')} đ
-          </p>
-          
-          {/* Stock info */}
-          <div className="mt-2 flex justify-between items-center">
-            <p className="text-gray-500 text-xs">
-              {product.stock > 0 ? `Còn lại: ${product.stock}` : 'Hết hàng'}
-            </p>
-            <div className={`w-2 h-2 rounded-full ${product.isActive ? 'bg-green-500' : 'bg-red-500'}`}></div>
+          {/* Container có thêm space cho hover effect */}
+          <div className="flex justify-center mt-4">
+            <div 
+              className="relative bg-gray-100 overflow-hidden rounded-lg transition-all duration-300 ease-in-out group-hover:scale-110 group-hover:-translate-y-2" 
+              style={{ 
+                width: '180px', 
+                height: '180px',
+              }}
+            >
+              <Image 
+                src={product.imageUrl || '/placeholder.jpg'} 
+                alt={product.name}
+                fill
+                className="object-cover"
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  target.src = '/placeholder.jpg';
+                }}
+              />
+            </div>
           </div>
-        </div>
-      </Link>
+          
+          <div className="p-4 mt-2">
+            {/* Category Badge */}
+            <span className="inline-block bg-red-100 text-red-600 text-xs font-medium px-2 py-1 rounded-full mb-2">
+              {getCategoryName(product.categoryId)}
+            </span>
+            
+            <h3 className="font-semibold text-lg">{product.name}</h3>
+            <p className="text-gray-600 line-clamp-2">{product.description}</p>
+            <p className="text-red-500 font-bold mt-2">{product.price.toLocaleString('vi-VN')} đ</p>
+            
+            {/* Stock info */}
+            <div className="mt-2 flex justify-between items-center">
+              <p className="text-gray-500 text-xs">
+                {product.stock > 0 ? `Còn lại: ${product.stock}` : 'Hết hàng'}
+              </p>
+              <div className={`w-2 h-2 rounded-full ${product.isActive ? 'bg-green-500' : 'bg-red-500'}`}></div>
+            </div>
+          </div>
+        </Link>
+      </div>
     </div>
   );
 };

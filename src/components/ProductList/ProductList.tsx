@@ -101,8 +101,8 @@ const ProductList = () => {
                     <p className="text-gray-600">Khám phá những sản phẩm công nghệ mới nhất</p>
                 </div>
 
-                {/* Products Grid - 2 columns to fit 563px width */}
-                <div className="grid grid-cols-2">
+                {/* Grid 5 columns */}
+                <div className="grid grid-cols-5">
                     {products.map((product) => (
                         <ProductItem 
                             key={product.id} 
@@ -111,9 +111,12 @@ const ProductList = () => {
                     ))}
                 </div>
 
-                {/* Products count */}
-                <div className="text-center mt-8 text-gray-600">
-                    Tổng cộng: {products.length} sản phẩm
+                {/* Load More Button */}
+                <div className="flex justify-center mt-8">
+                    <button className="bg-gray-200 text-gray-700 px-8 py-3 rounded-lg hover:bg-gray-300 transition-colors duration-200 font-medium">
+                        Xem thêm sản phẩm
+                        <i className="fas fa-chevron-down ml-2"></i>
+                    </button>
                 </div>
             </div>
         </div>
