@@ -2,6 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import { Navigation, Pagination, Zoom } from 'swiper/modules';
+import Image from 'next/image';
+import Link from 'next/link';
 
 // Import Swiper styles
 import 'swiper/css';
@@ -19,9 +21,12 @@ const ProductDetail = ({ productId }: ProductDetailProps) => {
     const [product, setProduct] = useState<Product | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [relatedProducts, setRelatedProducts] = useState<Product[]>([]);
+    const [quantity, setQuantity] = useState(1);
 
     useEffect(() => {
         fetchProductDetail();
+        fetchRelatedProducts();
     }, [productId]);
 
     const fetchProductDetail = async () => {
@@ -44,12 +49,33 @@ const ProductDetail = ({ productId }: ProductDetailProps) => {
         }
     };
 
-    // 🎯 TẠO GALLERY VỚI 3 ẢNH CỐ ĐỊNH
+    const fetchRelatedProducts = async () => {
+        try {
+            // Lấy tất cả sản phẩm và filter random 5 sản phẩm để hiển thị grid 5 cột
+            const allProducts = await productService.getAll();
+            const filtered = allProducts.filter(p => p.id !== productId);
+            const shuffled = filtered.sort(() => 0.5 - Math.random());
+            setRelatedProducts(shuffled.slice(0, 5)); // Lấy 5 sản phẩm cho grid 5 cột
+        } catch (err) {
+            console.error('❌ Error fetching related products:', err);
+        }
+    };
+
+    // 🎯 CẬP NHẬT: Sử dụng nhiều ảnh từ API
     const getProductImages = () => {
         const images = [];
         
-        // Ảnh chính từ sản phẩm (nếu có)
-        if (product?.imageUrl) {
+        // Sử dụng imageUrls từ API nếu có (FIX: Kiểm tra imageUrls thay vì imageUrl)
+        if (product?.imageUrls && product.imageUrls.length > 0) {
+            product.imageUrls.forEach((url, index) => {
+                images.push({
+                    url: url,
+                    alt: `${product.name} - Ảnh ${index + 1}`,
+                    isMain: index === 0
+                });
+            });
+        } else if (product?.imageUrl) {
+            // Fallback cho imageUrl đơn
             images.push({
                 url: product.imageUrl,
                 alt: product.name,
@@ -57,22 +83,49 @@ const ProductDetail = ({ productId }: ProductDetailProps) => {
             });
         }
         
-        // 🖼️ 3 ẢNH TỪ THƯ MỤC PRODUCTS
-        const staticImages = [
-            '/images/products/product-iphone16-promax-256-1.jpg',
-            '/images/products/product-iphone16-promax-256-2.jpg',
-            '/images/products/product-iphone16-promax-256-3.jpg'
-        ];
-
-        staticImages.forEach((url, index) => {
+        // Nếu không có ảnh nào, sử dụng placeholder
+        if (images.length === 0) {
             images.push({
-                url: url,
-                alt: `${product?.name} - Góc nhìn ${index + 1}`,
-                isMain: false
+                url: '/images/products/placeholder.jpg',
+                alt: product?.name || 'Sản phẩm',
+                isMain: true
             });
-        });
+        }
 
         return images;
+    };
+
+    // Helper function to get category name (giống ProductItem)
+    const getCategoryName = (categoryId: string) => {
+        const categoryMap: { [key: string]: string } = {
+            '685cbd213f7b05b5d70b860f': 'Điện thoại',
+            // Add more category mappings as needed
+        };
+        return categoryMap[categoryId] || 'Sản phẩm';
+    };
+
+    const handleQuantityChange = (newQuantity: number) => {
+        if (newQuantity >= 1 && newQuantity <= (product?.stock || 0)) {
+            setQuantity(newQuantity);
+        }
+    };
+
+    const handleAddToCart = () => {
+        if (!product) return;
+        console.log('🛒 THÊM VÀO GIỎ HÀNG:', {
+            product: product.name,
+            quantity: quantity,
+            totalPrice: product.price * quantity
+        });
+    };
+
+    const handleBuyNow = () => {
+        if (!product) return;
+        console.log('💳 MUA NGAY:', {
+            product: product.name,
+            quantity: quantity,
+            totalPrice: product.price * quantity
+        });
     };
 
     // Loading state
@@ -116,9 +169,10 @@ const ProductDetail = ({ productId }: ProductDetailProps) => {
 
     return (
         <div className="product-detail-container max-w-7xl mx-auto p-4">
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 lg:gap-12">
+            {/* 🎯 MAIN PRODUCT SECTION - 2 COLUMNS */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 mb-16">
 
-                {/* 🖼️ PRODUCT IMAGES - FIXED RESPONSIVE */}
+                {/* 🖼️ PRODUCT IMAGES - LEFT COLUMN */}
                 <div className="product-images w-full flex flex-col items-center">
                     <div className="main-swiper w-full max-w-lg">
                         <Swiper
@@ -135,7 +189,7 @@ const ProductDetail = ({ productId }: ProductDetailProps) => {
                                 '--swiper-navigation-color': '#374151',
                                 '--swiper-pagination-color': '#374151',
                                 '--swiper-navigation-size': '28px',
-                                aspectRatio: '3/2', // 720/480 = 3/2
+                                aspectRatio: '3/2',
                                 width: '100%',
                                 maxWidth: '720px',
                             } as any}
@@ -146,7 +200,7 @@ const ProductDetail = ({ productId }: ProductDetailProps) => {
                                         <div 
                                             className="w-full h-full flex items-center justify-center relative bg-white"
                                             style={{
-                                                aspectRatio: '3/2', // 720/480 = 3/2
+                                                aspectRatio: '3/2',
                                             }}
                                         >
                                             <img
@@ -158,7 +212,6 @@ const ProductDetail = ({ productId }: ProductDetailProps) => {
                                                     target.src = '/images/products/placeholder.jpg';
                                                 }}
                                             />
-                                            {/* Badge cho ảnh chính */}
                                             {image.isMain && (
                                                 <div className="absolute top-2 left-2 bg-blue-600 text-white px-2 py-1 rounded text-xs font-medium">
                                                     Ảnh chính
@@ -171,202 +224,164 @@ const ProductDetail = ({ productId }: ProductDetailProps) => {
                         </Swiper>
                     </div>
 
-                    {/* Image Counter & Features */}
-                    <div className="mt-4 flex items-center justify-between text-sm text-gray-600 w-full max-w-lg">
-                        <div className="flex items-center gap-4">
-                            <span>📸 {productImages.length} ảnh</span>
-                            <span>🔍 Click để phóng to</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <span className="text-xs bg-gray-100 px-2 py-1 rounded">
-                                Tỷ lệ 3:2 (720×480)
-                            </span>
-                        </div>
+                    {/* Image Counter */}
+                    <div className="mt-4 text-center text-sm text-gray-600">
+                        <span>📸 {productImages.length} ảnh • 🔍 Click để phóng to</span>
                     </div>
                 </div>
 
-                {/* 📝 PRODUCT INFORMATION - CLEAN STYLE */}
+                {/* 📝 PRODUCT INFO - RIGHT COLUMN - SIMPLIFIED */}
                 <div className="product-info w-full">
-                    {/* Breadcrumb Navigation */}
-                    <nav className="breadcrumb mb-6 text-sm text-gray-500">
-                        <span className="hover:text-blue-600 cursor-pointer">Trang chủ</span>
-                        <span className="mx-2">›</span>
-                        <span className="hover:text-blue-600 cursor-pointer">Sản phẩm</span>
-                        <span className="mx-2">›</span>
-                        <span className="text-gray-800 font-medium">{product.name}</span>
-                    </nav>
-
                     {/* Product Name */}
-                    <h1 className="text-2xl lg:text-3xl font-bold text-gray-900 mb-6 leading-tight">
+                    <h1 className="text-2xl lg:text-3xl font-bold text-gray-900 mb-4 leading-tight">
                         {product.name}
                     </h1>
 
-                    {/* Product ID */}
-                    <p className="text-sm text-gray-500 mb-6">
-                        Mã sản phẩm: {product.id}
-                    </p>
-
                     {/* Price Section */}
-                    <div className="price-section mb-8">
-                        <span className="text-3xl font-bold text-blue-600">
+                    <div className="price-section mb-6">
+                        <span className="text-3xl font-bold text-red-600">
                             {product.price.toLocaleString('vi-VN')} đ
                         </span>
                     </div>
 
                     {/* Product Description */}
                     <div className="description mb-8">
-                        <h3 className="text-lg font-semibold mb-3">Mô tả sản phẩm:</h3>
-                        <p className="text-gray-700 leading-relaxed">
-                            {product.description}
-                        </p>
-                    </div>
-
-                    {/* Product Options */}
-                    <div className="product-options mb-8 space-y-4">
-                        {/* Stock Status */}
-                        <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                            <span className="text-gray-600">Tình trạng:</span>
-                            <div className="flex items-center gap-2">
-                                <span className={`font-medium ${product.stock > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                    {product.stock > 0 ? `Còn lại ${product.stock} sản phẩm` : 'Hết hàng'}
-                                </span>
-                                <div className={`w-2 h-2 rounded-full ${product.isActive ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                            </div>
-                        </div>
-
-                        {/* Category */}
-                        <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                            <span className="text-gray-600">Danh mục:</span>
-                            <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded text-sm font-medium">
-                                {product.categoryId}
-                            </span>
-                        </div>
-
-                        {/* Quantity Selector */}
-                        <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                            <span className="text-gray-600">Số lượng:</span>
-                            <div className="flex items-center border rounded-lg bg-white">
-                                <button className="px-3 py-2 text-gray-500 hover:bg-gray-100 transition-colors">
-                                    −
-                                </button>
-                                <input 
-                                    type="number" 
-                                    value="1" 
-                                    min="1" 
-                                    max={product.stock}
-                                    className="w-16 text-center py-2 border-0 focus:outline-none"
-                                />
-                                <button className="px-3 py-2 text-gray-500 hover:bg-gray-100 transition-colors">
-                                    +
-                                </button>
-                            </div>
+                        <h3 className="text-lg font-semibold mb-3 text-gray-900">Mô tả sản phẩm</h3>
+                        <div className="text-gray-700 leading-relaxed">
+                            {product.description.split('\n').map((line, index) => (
+                                <p key={index} className="mb-2">
+                                    {line}
+                                </p>
+                            ))}
                         </div>
                     </div>
 
-                    {/* Actions - Clean Style */}
-                    <div className="actions space-y-4">
-                        {/* Add to Cart Button */}
-                        <button
-                            className={`w-full py-4 px-6 rounded-lg font-medium transition-all duration-200 ${
-                                product.stock > 0
-                                    ? 'bg-white text-blue-600 border-2 border-blue-600 hover:bg-blue-600 hover:text-white'
-                                    : 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                            }`}
-                            disabled={product.stock === 0}
-                            onClick={() => {
-                                console.log('🛒 THÊM VÀO GIỎ HÀNG:', product.name);
-                            }}
-                        >
-                            {product.stock > 0 ? (
-                                <span className="flex items-center justify-center gap-2">
-                                    🛒 Thêm vào giỏ hàng
-                                </span>
-                            ) : 'Hết hàng'}
-                        </button>
-
-                        {/* Buy Now Button */}
-                        {product.stock > 0 && (
+                    {/* Quantity and Actions */}
+                    <div className="purchase-section">
+                        {/* Actions Only - Bỏ Quantity Selector, chỉ giữ Thêm vào giỏ hàng */}
+                        <div className="actions">
                             <button
-                                className="w-full py-4 px-6 rounded-lg font-medium bg-blue-600 text-white hover:bg-blue-700 transition-all duration-200"
-                                onClick={() => {
-                                    console.log('💳 MUA NGAY:', product.name);
-                                }}
+                                onClick={handleAddToCart}
+                                className={`w-full py-3 px-6 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 ${
+                                    product.stock > 0
+                                        ? 'bg-white text-blue-600 border-2 border-blue-600 hover:bg-blue-600 hover:text-white'
+                                        : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                                }`}
+                                disabled={product.stock === 0}
                             >
-                                <span className="flex items-center justify-center gap-2">
-                                    ⚡ Mua ngay
-                                </span>
+                                {product.stock > 0 ? (
+                                    <>
+                                        <i className="fas fa-shopping-cart"></i>
+                                        Thêm vào giỏ hàng
+                                    </>
+                                ) : (
+                                    <>
+                                        <i className="fas fa-times"></i>
+                                        Hết hàng
+                                    </>
+                                )}
                             </button>
-                        )}
-                    </div>
-                </div>
-            </div>
+                        </div>
 
-            {/* Product Description Section */}
-            <div className="mt-16">
-                <div className="max-w-4xl mx-auto">
-                    <h2 className="text-2xl font-bold text-gray-900 mb-6">Chi tiết sản phẩm</h2>
-                    <div className="bg-white rounded-lg shadow border p-6">
-                        <p className="text-gray-700 leading-relaxed text-base">
-                            {product.description}
-                        </p>
-                    </div>
-                </div>
-            </div>
-
-            {/* Additional Product Info */}
-            <div className="mt-12">
-                <div className="max-w-4xl mx-auto">
-                    <h2 className="text-2xl font-bold text-gray-900 mb-6">Thông tin kỹ thuật</h2>
-                    <div className="bg-white rounded-lg shadow border overflow-hidden">
-                        <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x">
-                            <div className="p-6">
-                                <h3 className="font-semibold text-gray-900 mb-4">Thông tin cơ bản</h3>
-                                <div className="space-y-3">
-                                    <div className="flex justify-between">
-                                        <span className="text-gray-600">Mã sản phẩm:</span>
-                                        <span className="font-medium text-gray-900">{product.id}</span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span className="text-gray-600">Trạng thái:</span>
-                                        <span className={`font-medium ${product.isActive ? 'text-green-600' : 'text-red-600'}`}>
-                                            {product.isActive ? 'Đang bán' : 'Ngừng bán'}
-                                        </span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span className="text-gray-600">Tỷ lệ ảnh:</span>
-                                        <span className="font-medium text-gray-900">3:2 (720×480)</span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span className="text-gray-600">Responsive:</span>
-                                        <span className="font-medium text-gray-900">✅ Có</span>
-                                    </div>
-                                </div>
-                            </div>
-                            <div className="p-6">
-                                <h3 className="font-semibold text-gray-900 mb-4">Thông tin kho</h3>
-                                <div className="space-y-3">
-                                    <div className="flex justify-between">
-                                        <span className="text-gray-600">Tồn kho:</span>
-                                        <span className="font-medium text-gray-900">{product.stock} sản phẩm</span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span className="text-gray-600">Danh mục:</span>
-                                        <span className="font-medium text-gray-900">{product.categoryId}</span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span className="text-gray-600">Ngày tạo:</span>
-                                        <span className="font-medium text-gray-900">
-                                            {new Date(product.createdAt).toLocaleDateString('vi-VN')}
-                                        </span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span className="text-gray-600">Số ảnh:</span>
-                                        <span className="font-medium text-gray-900">{productImages.length} ảnh</span>
-                                    </div>
-                                </div>
-                            </div>
+                        {/* Stock Info */}
+                        <div className="mt-4 text-center text-sm text-gray-600">
+                            Còn lại: <span className="font-medium">{product.stock}</span> sản phẩm
                         </div>
                     </div>
+                </div>
+            </div>
+
+            {/* 🎯 RELATED PRODUCTS SECTION - GIỐNG PRODUCTLIST */}
+            <div className="related-products w-full flex justify-center py-8">
+                <div className="w-[1160px] px-4">
+                    {/* Header giống ProductList */}
+                    <div className="mb-8">
+                        <h2 className="text-3xl font-bold text-gray-800 mb-2">Sản phẩm liên quan</h2>
+                        <p className="text-gray-600">Khám phá những sản phẩm tương tự</p>
+                    </div>
+
+                    {relatedProducts.length > 0 ? (
+                        <>
+                            {/* Grid 5 columns giống ProductList */}
+                            <div className="grid grid-cols-5">
+                                {relatedProducts.map((relatedProduct) => (
+                                    <div key={relatedProduct.id} className="rounded-lg overflow-hidden transition-shadow group">
+                                        <div 
+                                            className="bg-white rounded-lg overflow-hidden custom-shadow-hover transition-all duration-300"
+                                            style={{ 
+                                                border: '1px solid rgba(234, 236, 240, 1)',
+                                                margin: '5px 10px 5px 0',
+                                                padding: '20px 10px 10px 10px',
+                                                height: '563px'
+                                            }}
+                                        >
+                                            {/* Link giống ProductItem */}
+                                            <Link href={`/products/${relatedProduct.id}`}>
+                                                {/* Container có thêm space cho hover effect */}
+                                                <div className="flex justify-center mt-4">
+                                                    <div 
+                                                        className="relative bg-gray-100 overflow-hidden rounded-lg transition-all duration-300 ease-in-out group-hover:scale-110 group-hover:-translate-y-2" 
+                                                        style={{ 
+                                                            width: '180px', 
+                                                            height: '180px',
+                                                        }}
+                                                    >
+                                                        <Image 
+                                                            src={relatedProduct.imageUrl || '/placeholder.jpg'} 
+                                                            alt={relatedProduct.name}
+                                                            fill
+                                                            className="object-cover"
+                                                            onError={(e) => {
+                                                                const target = e.target as HTMLImageElement;
+                                                                target.src = '/placeholder.jpg';
+                                                            }}
+                                                        />
+                                                    </div>
+                                                </div>
+                                                
+                                                <div className="p-4 mt-2">
+                                                    {/* Category Badge */}
+                                                    <span className="inline-block bg-red-100 text-red-600 text-xs font-medium px-2 py-1 rounded-full mb-2">
+                                                        {getCategoryName(relatedProduct.categoryId)}
+                                                    </span>
+                                                    
+                                                    <h3 className="font-semibold text-lg">{relatedProduct.name}</h3>
+                                                    <p className="text-gray-600 line-clamp-2">{relatedProduct.description}</p>
+                                                    <p className="text-red-500 font-bold mt-2">{relatedProduct.price.toLocaleString('vi-VN')} đ</p>
+                                                    
+                                                    {/* Stock info */}
+                                                    <div className="mt-2 flex justify-between items-center">
+                                                        <p className="text-gray-500 text-xs">
+                                                            {relatedProduct.stock > 0 ? `Còn lại: ${relatedProduct.stock}` : 'Hết hàng'}
+                                                        </p>
+                                                        <div className={`w-2 h-2 rounded-full ${relatedProduct.isActive ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                                                    </div>
+                                                </div>
+                                            </Link>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* Load More Button giống ProductList */}
+                            <div className="flex justify-center mt-8">
+                                <button 
+                                    onClick={() => {
+                                        // Navigate to products page
+                                        window.location.href = '/products';
+                                    }}
+                                    className="bg-gray-200 text-gray-700 px-8 py-3 rounded-lg hover:bg-gray-300 transition-colors duration-200 font-medium"
+                                >
+                                    Xem thêm sản phẩm
+                                    <i className="fas fa-chevron-down ml-2"></i>
+                                </button>
+                            </div>
+                        </>
+                    ) : (
+                        <div className="text-center py-8">
+                            <p className="text-gray-600">Không có sản phẩm liên quan</p>
+                        </div>
+                    )}
                 </div>
             </div>
         </div>
