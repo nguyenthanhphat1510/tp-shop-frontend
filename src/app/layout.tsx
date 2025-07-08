@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import Navbar from "@/components/Navbar/Navbar";
+import { AuthProvider } from '@/contexts/AuthContext';
+import AuthModal from '@/components/Auth/AuthModal';
 
 export const metadata: Metadata = {
   title: "TpShop - Cửa hàng điện thoại",
@@ -18,8 +20,11 @@ export default function RootLayout({
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
       </head>
       <body suppressHydrationWarning={true}>
-        <Navbar />
-        {children}
+        <AuthProvider>
+          <Navbar />
+          {children}
+          <AuthModal />
+        </AuthProvider>
       </body>
     </html>
   );

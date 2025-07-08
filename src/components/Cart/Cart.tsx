@@ -31,7 +31,7 @@ const mockCartData: Cart = {
             name: 'MacBook Air 13 inch M2 16GB/256GB',
             price: 23490000,
             quantity: 1,
-            imageUrl: 'https://via.placeholder.com/80x80/E5E7EB/6B7280?text=MacBook',
+            imageUrl: '',
             stock: 10,
             isSelected: true
         },
@@ -41,7 +41,7 @@ const mockCartData: Cart = {
             name: 'iPhone 15 Pro Max 256GB',
             price: 30000000,
             quantity: 2,
-            imageUrl: 'https://via.placeholder.com/80x80/E5E7EB/6B7280?text=iPhone',
+            imageUrl: '',
             stock: 5,
             isSelected: true
         },
@@ -51,7 +51,7 @@ const mockCartData: Cart = {
             name: 'Samsung Galaxy S24 Ultra 512GB',
             price: 28000000,
             quantity: 1,
-            imageUrl: 'https://via.placeholder.com/80x80/E5E7EB/6B7280?text=Samsung',
+            imageUrl: '',
             stock: 8,
             isSelected: false
         }
