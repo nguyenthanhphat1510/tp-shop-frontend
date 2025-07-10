@@ -205,9 +205,8 @@ const Cart = () => {
             promoCode: promoCode
         });
         
-        // Redirect to checkout page
-        // window.location.href = '/checkout';
-        alert(`Thanh toán thành công! Tổng tiền: ${cart.totalPrice.toLocaleString('vi-VN')}đ`);
+        // Chuyển đến trang checkout
+        window.location.href = '/checkout';
     };
 
     // Phần UI giữ nguyên
