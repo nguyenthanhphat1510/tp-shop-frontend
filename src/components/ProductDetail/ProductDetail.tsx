@@ -4,6 +4,7 @@ import { Swiper, SwiperSlide } from 'swiper/react';
 import { Navigation, Pagination, Zoom } from 'swiper/modules';
 import Image from 'next/image';
 import Link from 'next/link';
+import { cartService } from '../../services';
 
 // Import Swiper styles
 import 'swiper/css';
@@ -110,13 +111,23 @@ const ProductDetail = ({ productId }: ProductDetailProps) => {
         }
     };
 
-    const handleAddToCart = () => {
+    const handleAddToCart = async () => {
         if (!product) return;
-        console.log('🛒 THÊM VÀO GIỎ HÀNG:', {
-            product: product.name,
-            quantity: quantity,
-            totalPrice: product.price * quantity
-        });
+        
+        try {
+            const cartItem = await cartService.addToCart({
+                productId: product.id,
+                quantity: quantity
+            });
+            
+            console.log('🛒 Thêm vào giỏ hàng thành công:', cartItem);
+            // Hiển thị thông báo thành công (với toast hoặc alert)
+            alert('Đã thêm sản phẩm vào giỏ hàng');
+            
+        } catch (error: any) {
+            console.error('❌ Lỗi khi thêm vào giỏ hàng:', error);
+            alert(`Lỗi: ${error.message || 'Thêm vào giỏ hàng thất bại'}`);
+        }
     };
 
     const handleBuyNow = () => {

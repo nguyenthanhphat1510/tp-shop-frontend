@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { cartService } from '@/services';
 
 interface CartItem {
     id: string;
@@ -22,97 +23,176 @@ interface Cart {
     selectedPrice: number;
 }
 
-// Mock data với placeholder
-const mockCartData: Cart = {
-    items: [
-        {
-            id: '1',
-            productId: '674a1234567890abcdef1111',
-            name: 'MacBook Air 13 inch M2 16GB/256GB',
-            price: 23490000,
-            quantity: 1,
-            imageUrl: '',
-            stock: 10,
-            isSelected: true
-        },
-        {
-            id: '2',
-            productId: '674a1234567890abcdef2222',
-            name: 'iPhone 15 Pro Max 256GB',
-            price: 30000000,
-            quantity: 2,
-            imageUrl: '',
-            stock: 5,
-            isSelected: true
-        },
-        {
-            id: '3',
-            productId: '674a1234567890abcdef3333',
-            name: 'Samsung Galaxy S24 Ultra 512GB',
-            price: 28000000,
-            quantity: 1,
-            imageUrl: '',
-            stock: 8,
-            isSelected: false
-        }
-    ],
-    totalItems: 4,
-    totalPrice: 81490000,
-    selectedItems: 3,
-    selectedPrice: 53490000
-};
-
 const Cart = () => {
-    const [cart, setCart] = useState<Cart>(mockCartData);
+    const [cart, setCart] = useState<Cart>({
+        items: [],
+        totalItems: 0,
+        totalPrice: 0,
+        selectedItems: 0,
+        selectedPrice: 0
+    });
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
     const [promoCode, setPromoCode] = useState('');
 
-    // Tính toán lại tổng tiền khi có thay đổi
     useEffect(() => {
-        const selectedItems = cart.items.filter(item => item.isSelected);
-        const selectedPrice = selectedItems.reduce((total, item) => total + (item.price * item.quantity), 0);
-        const selectedCount = selectedItems.reduce((total, item) => total + item.quantity, 0);
-        const totalPrice = cart.items.reduce((total, item) => total + (item.price * item.quantity), 0);
-        const totalItems = cart.items.reduce((total, item) => total + item.quantity, 0);
+        fetchCartData();
+    }, []);
 
-        setCart(prev => ({
-            ...prev,
-            selectedItems: selectedCount,
-            selectedPrice: selectedPrice,
-            totalItems: totalItems,
-            totalPrice: totalPrice
-        }));
-    }, [cart.items]);
-
-    // Xử lý thay đổi số lượng
-    const handleQuantityChange = (itemId: string, newQuantity: number) => {
-        if (newQuantity < 1) return;
-        
-        setCart(prev => ({
-            ...prev,
-            items: prev.items.map(item => {
-                if (item.id === itemId) {
-                    if (newQuantity > item.stock) {
-                        alert(`Chỉ còn ${item.stock} sản phẩm trong kho`);
-                        return item;
-                    }
-                    return { ...item, quantity: newQuantity };
+    const fetchCartData = async () => {
+        try {
+            setLoading(true);
+            setError(null);
+            
+            console.log('🔍 Fetching cart data...');
+            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/cart`, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    // Nếu có auth: 'Authorization': `Bearer ${localStorage.getItem('token')}`
                 }
-                return item;
-            })
-        }));
-    };
-
-    // Xử lý xóa sản phẩm
-    const handleRemoveItem = (itemId: string) => {
-        if (window.confirm('Bạn có chắc muốn xóa sản phẩm này khỏi giỏ hàng?')) {
-            setCart(prev => ({
-                ...prev,
-                items: prev.items.filter(item => item.id !== itemId)
+            });
+            
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Không thể tải giỏ hàng');
+            }
+            
+            const cartData = await response.json();
+            console.log('🛒 Cart API Response:', cartData);
+            
+            if (!cartData.success) {
+                throw new Error(cartData.message || 'Lỗi tải giỏ hàng');
+            }
+            
+            // Chuẩn hóa dữ liệu từ API
+            const items = cartData.data.cartItems || [];
+            const transformedItems = items.map(item => ({
+                id: item._id || item.id,
+                productId: item.productId,
+                name: item.product?.name || 'Sản phẩm không xác định',
+                price: item.product?.price || 0,
+                quantity: item.quantity || 0,
+                imageUrl: item.product?.imageUrl || '/placeholder.jpg',
+                stock: item.product?.stock || 0,
+                isSelected: true
             }));
+            
+            // Tính toán tổng
+            const totalItems = transformedItems.reduce((total, item) => total + item.quantity, 0);
+            const totalPrice = transformedItems.reduce((total, item) => total + (item.price * item.quantity), 0);
+            
+            setCart({
+                items: transformedItems,
+                totalItems,
+                totalPrice,
+                selectedItems: totalItems,
+                selectedPrice: totalPrice
+            });
+            
+        } catch (err: any) {
+            console.error('❌ Error fetching cart:', err);
+            setError(err.message || 'Không thể tải giỏ hàng');
+        } finally {
+            setLoading(false);
         }
     };
 
-    // Xử lý thanh toán
+    const handleQuantityChange = async (itemId: string, newQuantity: number) => {
+        if (newQuantity < 1) return;
+        
+        try {
+            const item = cart.items.find(item => item.id === itemId);
+            if (!item) return;
+            
+            if (newQuantity > item.stock) {
+                alert(`Chỉ còn ${item.stock} sản phẩm trong kho`);
+                return;
+            }
+            
+            let response;
+            if (newQuantity > item.quantity) {
+                // Tăng số lượng
+                response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/cart/increase/${itemId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        // 'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+            } else {
+                // Giảm số lượng
+                response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/cart/decrease/${itemId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        // 'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+            }
+            
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Không thể cập nhật số lượng');
+            }
+            
+            const result = await response.json();
+            
+            if (!result.success) {
+                throw new Error(result.message || 'Lỗi cập nhật số lượng');
+            }
+            
+            // Cập nhật state
+            setCart(prev => ({
+                ...prev,
+                items: prev.items.map(item => {
+                    if (item.id === itemId) {
+                        return { ...item, quantity: newQuantity };
+                    }
+                    return item;
+                })
+            }));
+            
+        } catch (err: any) {
+            console.error('❌ Error updating quantity:', err);
+            alert(err.message || 'Không thể cập nhật số lượng');
+        }
+    };
+
+    const handleRemoveItem = async (itemId: string) => {
+        if (window.confirm('Bạn có chắc muốn xóa sản phẩm này khỏi giỏ hàng?')) {
+            try {
+                const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/cart/remove/${itemId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        // 'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+                
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.message || 'Không thể xóa sản phẩm');
+                }
+                
+                const result = await response.json();
+                
+                if (!result.success) {
+                    throw new Error(result.message || 'Lỗi xóa sản phẩm');
+                }
+                
+                setCart(prev => ({
+                    ...prev,
+                    items: prev.items.filter(item => item.id !== itemId)
+                }));
+                
+            } catch (err: any) {
+                console.error('❌ Error removing item:', err);
+                alert(err.message || 'Không thể xóa sản phẩm');
+            }
+        }
+    };
+
     const handleCheckout = () => {
         if (cart.items.length === 0) {
             alert('Giỏ hàng trống');
@@ -125,43 +205,64 @@ const Cart = () => {
             promoCode: promoCode
         });
         
+        // Redirect to checkout page
+        // window.location.href = '/checkout';
         alert(`Thanh toán thành công! Tổng tiền: ${cart.totalPrice.toLocaleString('vi-VN')}đ`);
     };
+
+    // Phần UI giữ nguyên
 
     return (
         <div className="min-h-screen bg-gray-50">
             <div className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
                 <h1 className="text-2xl sm:text-3xl font-bold mb-6 text-gray-900">Giỏ hàng</h1>
                 
-                {cart.items.length === 0 ? (
+                {loading ? (
+                    <div className="text-center py-16">
+                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                        <p className="text-gray-600">Đang tải giỏ hàng...</p>
+                    </div>
+                ) : error ? (
+                    <div className="text-center py-16">
+                        <div className="text-red-600 text-5xl mb-4">⚠️</div>
+                        <h2 className="text-xl font-bold text-gray-800 mb-2">Không thể tải giỏ hàng</h2>
+                        <p className="text-gray-600 mb-4">{error}</p>
+                        <button 
+                            onClick={fetchCartData}
+                            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+                        >
+                            Thử lại
+                        </button>
+                    </div>
+                ) : cart.items.length === 0 ? (
                     <div className="text-center py-16">
                         <div className="mb-8">
-                            <i className="fas fa-shopping-cart text-6xl text-gray-300 mb-4"></i>
-                            <h2 className="text-xl sm:text-2xl font-semibold text-gray-600 mb-2">Giỏ hàng trống</h2>
+                            <span className="text-6xl">🛒</span>
+                            <h2 className="text-xl sm:text-2xl font-semibold text-gray-600 mb-2 mt-4">Giỏ hàng trống</h2>
                             <p className="text-gray-500">Hãy thêm sản phẩm vào giỏ hàng để tiếp tục mua sắm</p>
                         </div>
                         <Link href="/products">
                             <button className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors font-medium">
-                                <i className="fas fa-arrow-left mr-2"></i>
                                 Tiếp tục mua sắm
                             </button>
                         </Link>
                     </div>
                 ) : (
+                    // Giữ nguyên nội dung hiển thị giỏ hàng
                     <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
-                        {/* Items List - Desktop: 3 columns, Mobile: 1 column */}
+                        {/* Các phần UI khác giữ nguyên */}
                         <div className="xl:col-span-3">
                             {/* Desktop Table View */}
                             <div className="hidden lg:block bg-white rounded-lg shadow-sm border overflow-hidden">
                                 {/* Table Header */}
                                 <div className="bg-gray-100 border-b">
                                     <div className="grid grid-cols-12 gap-4 p-4 text-sm font-medium text-gray-700">
-                                        <div className="col-span-1">Items</div>
-                                        <div className="col-span-5">Title</div>
-                                        <div className="col-span-2 text-center">Price</div>
-                                        <div className="col-span-2 text-center">Quantity</div>
-                                        <div className="col-span-1 text-center">Total</div>
-                                        <div className="col-span-1 text-center">Remove</div>
+                                        <div className="col-span-1">Ảnh</div>
+                                        <div className="col-span-5">Tên sản phẩm</div>
+                                        <div className="col-span-2 text-center">Đơn giá</div>
+                                        <div className="col-span-2 text-center">Số lượng</div>
+                                        <div className="col-span-1 text-center">Thành tiền</div>
+                                        <div className="col-span-1 text-center">Xóa</div>
                                     </div>
                                 </div>
 
@@ -173,7 +274,7 @@ const Cart = () => {
                                             <div className="col-span-1">
                                                 <div className="w-16 h-16 bg-gray-200 rounded border overflow-hidden">
                                                     <Image
-                                                        src={item.imageUrl}
+                                                        src={item.imageUrl || '/placeholder.jpg'}
                                                         alt={item.name}
                                                         width={64}
                                                         height={64}
@@ -248,7 +349,7 @@ const Cart = () => {
                                             {/* Image */}
                                             <div className="w-20 h-20 bg-gray-200 rounded border overflow-hidden flex-shrink-0">
                                                 <Image
-                                                    src={item.imageUrl}
+                                                    src={item.imageUrl || '/placeholder.jpg'}
                                                     alt={item.name}
                                                     width={80}
                                                     height={80}
@@ -348,14 +449,12 @@ const Cart = () => {
                                     onClick={handleCheckout}
                                     className="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors mb-3"
                                 >
-                                    <i className="fas fa-credit-card mr-2"></i>
                                     Thanh toán ({cart.totalItems})
                                 </button>
 
                                 {/* Continue Shopping */}
                                 <Link href="/products">
                                     <button className="w-full bg-gray-200 text-gray-700 py-3 rounded-lg font-medium hover:bg-gray-300 transition-colors">
-                                        <i className="fas fa-arrow-left mr-2"></i>
                                         Tiếp tục mua sắm
                                     </button>
                                 </Link>
