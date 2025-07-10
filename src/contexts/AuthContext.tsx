@@ -1,6 +1,8 @@
 "use client";
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User } from '@/types/auth';
+import { authService } from '@/services/AuthService/authService';
+import { toast } from 'react-toastify'; // ✅ Import toast
 
 interface AuthContextType {
     // States
@@ -8,6 +10,7 @@ interface AuthContextType {
     isAuthenticated: boolean;
     showLoginModal: boolean;
     showRegisterModal: boolean;
+    loading: boolean;
     
     // Modal controls
     setShowLoginModal: (show: boolean) => void;
@@ -15,7 +18,7 @@ interface AuthContextType {
     switchToLogin: () => void;
     switchToRegister: () => void;
     
-    // Auth actions (mock for now)
+    // Auth actions
     login: (email: string, password: string) => Promise<void>;
     register: (userData: any) => Promise<void>;
     logout: () => void;
@@ -28,6 +31,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const [user, setUser] = useState<User | null>(null);
     const [showLoginModal, setShowLoginModal] = useState(false);
     const [showRegisterModal, setShowRegisterModal] = useState(false);
+    const [loading, setLoading] = useState(false);
+
+    // Check localStorage on app start
+    useEffect(() => {
+        const token = localStorage.getItem('token');
+        const savedUser = localStorage.getItem('user');
+        
+        if (token && savedUser) {
+            try {
+                setUser(JSON.parse(savedUser));
+            } catch (error) {
+                console.error('Error parsing saved user:', error);
+                localStorage.removeItem('token');
+                localStorage.removeItem('user');
+            }
+        }
+    }, []);
 
     // Modal controls
     const switchToLogin = () => {
@@ -40,64 +60,117 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setShowRegisterModal(true);
     };
 
-    // Mock login function
+    // ✅ LOGIN - đơn giản
     const login = async (email: string, password: string) => {
         try {
-            // Mock API call - thay bằng real API sau
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            setLoading(true);
             
-            const mockUser: User = {
-                id: '1',
-                email: email,
-                name: 'Nguyễn Văn A',
-                phone: '0123456789'
-            };
+            const response = await authService.login({ email, password });
             
-            setUser(mockUser);
-            setShowLoginModal(false);
-            
-            // Save to localStorage
-            localStorage.setItem('user', JSON.stringify(mockUser));
-            
-            console.log('✅ Login success:', mockUser);
-        } catch (error) {
+            if (response.success && response.token && response.user) {
+                const contextUser: User = {
+                    id: response.user.id,
+                    email: response.user.email,
+                    name: response.user.name,
+                };
+                
+                localStorage.setItem('token', response.token);
+                localStorage.setItem('user', JSON.stringify(contextUser));
+                setUser(contextUser);
+                setShowLoginModal(false);
+                
+                // ✅ SUCCESS TOAST - đơn giản
+                toast.success(`Chào mừng ${contextUser.name}! Đăng nhập thành công.`);
+                
+                console.log('✅ Login success:', contextUser);
+            } else {
+                throw new Error(response.message || 'Đăng nhập thất bại');
+            }
+        } catch (error: any) {
             console.error('❌ Login error:', error);
-            throw new Error('Email hoặc mật khẩu không đúng');
+            
+            // ✅ ERROR TOAST - đơn giản
+            toast.error(error.message || 'Email hoặc mật khẩu không đúng');
+            
+            throw new Error(error.message || 'Đăng nhập thất bại');
+        } finally {
+            setLoading(false);
         }
     };
 
-    // Mock register function  
+    // ✅ REGISTER - đơn giản
     const register = async (userData: any) => {
         try {
-            // Mock API call - thay bằng real API sau
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            setLoading(true);
             
-            const mockUser: User = {
-                id: Date.now().toString(),
-                email: userData.email,
+            const response = await authService.register({
                 name: userData.name,
-                phone: userData.phone
-            };
+                email: userData.email,
+                password: userData.password
+            });
             
-            setUser(mockUser);
-            setShowRegisterModal(false);
-            
-            // Save to localStorage
-            localStorage.setItem('user', JSON.stringify(mockUser));
-            
-            console.log('✅ Register success:', mockUser);
-        } catch (error) {
+            if (response.success) {
+                if (response.token && response.user) {
+                    const contextUser: User = {
+                        id: response.user.id,
+                        email: response.user.email,
+                        name: response.user.name,
+                        phone: userData.phone || '',
+                    };
+                    
+                    localStorage.setItem('token', response.token);
+                    localStorage.setItem('user', JSON.stringify(contextUser));
+                    setUser(contextUser);
+                    
+                    // ✅ SUCCESS TOAST - đơn giản
+                    toast.success(`Chào mừng ${contextUser.name}! Đăng ký thành công.`);
+                } else {
+                    // ✅ SUCCESS TOAST - đơn giản
+                    toast.success('Đăng ký thành công! Vui lòng đăng nhập.');
+                }
+                
+                setShowRegisterModal(false);
+                
+                if (!response.token) {
+                    switchToLogin();
+                }
+                
+                console.log('✅ Register success:', response.user);
+            } else {
+                throw new Error(response.message || 'Đăng ký thất bại');
+            }
+        } catch (error: any) {
             console.error('❌ Register error:', error);
-            throw new Error('Có lỗi xảy ra khi đăng ký');
+            
+            // ✅ ERROR TOAST - đơn giản
+            toast.error(error.message || 'Có lỗi xảy ra khi đăng ký');
+            
+            throw new Error(error.message || 'Đăng ký thất bại');
+        } finally {
+            setLoading(false);
         }
     };
 
-    // Logout
+    // ✅ LOGOUT - đơn giản
     const logout = () => {
-        setUser(null);
-        localStorage.removeItem('user');
-        setShowLoginModal(false);
-        setShowRegisterModal(false);
+        try {
+            authService.logout();
+            
+            const userName = user?.name || 'bạn';
+            setUser(null);
+            setShowLoginModal(false);
+            setShowRegisterModal(false);
+            
+            // ✅ SUCCESS TOAST - đơn giản
+            toast.info(`Tạm biệt ${userName}! Đăng xuất thành công.`);
+            
+            console.log('✅ Logout success');
+        } catch (error: any) {
+            console.error('❌ Logout error:', error);
+            
+            // ✅ ERROR TOAST - đơn giản
+            toast.error('Có lỗi xảy ra khi đăng xuất');
+        }
     };
 
     return (
@@ -106,6 +179,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             isAuthenticated: !!user,
             showLoginModal,
             showRegisterModal,
+            loading,
             setShowLoginModal,
             setShowRegisterModal,
             switchToLogin,
@@ -119,7 +193,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     );
 };
 
-// Hook để sử dụng context
 export const useAuth = () => {
     const context = useContext(AuthContext);
     if (!context) {

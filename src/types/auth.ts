@@ -3,18 +3,19 @@ export interface User {
     email: string;
     name: string;
     phone?: string;
-    avatar?: string;
+    role?: string;
+    createdAt?: string;
+    updatedAt?: string;
 }
 
-export interface LoginData {
+export interface LoginRequest {
     email: string;
     password: string;
 }
 
-export interface RegisterData {
+export interface RegisterRequest {
     name: string;
     email: string;
     password: string;
-    confirmPassword: string;
     phone?: string;
 }

@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 import Navbar from "@/components/Navbar/Navbar";
 import { AuthProvider } from '@/contexts/AuthContext';
+import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 import AuthModal from '@/components/Auth/AuthModal';
 
 export const metadata: Metadata = {
@@ -24,6 +26,9 @@ export default function RootLayout({
           <Navbar />
           {children}
           <AuthModal />
+           {/* ✅ Toast Container */}
+                    <ToastContainer
+                    />
         </AuthProvider>
       </body>
     </html>
