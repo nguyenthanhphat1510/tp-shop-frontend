@@ -102,8 +102,19 @@ const Cart = () => {
         if (newQuantity < 1) return;
         
         try {
+            // ✅ THÊM debug để kiểm tra itemId
+            console.log('🔍 Debug itemId:', {
+                itemId,
+                type: typeof itemId,
+                length: itemId?.length,
+                isValidObjectId: /^[0-9a-fA-F]{24}$/.test(itemId)
+            });
+
             const item = cart.items.find(item => item.id === itemId);
-            if (!item) return;
+            if (!item) {
+                console.error('❌ Item not found:', itemId);
+                return;
+            }
             
             if (newQuantity > item.stock) {
                 alert(`Chỉ còn ${item.stock} sản phẩm trong kho`);
@@ -111,47 +122,35 @@ const Cart = () => {
             }
             
             let response;
+            const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+            
             if (newQuantity > item.quantity) {
-                // Tăng số lượng
-                response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/cart/increase/${itemId}`, {
+                console.log('🔍 Calling increase API:', `${baseUrl}/api/cart/increase/${itemId}`);
+                response = await fetch(`${baseUrl}/api/cart/increase/${itemId}`, {
                     method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json',
-                        // 'Authorization': `Bearer ${localStorage.getItem('token')}`
                     }
                 });
             } else {
-                // Giảm số lượng
-                response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/cart/decrease/${itemId}`, {
+                console.log('🔍 Calling decrease API:', `${baseUrl}/api/cart/decrease/${itemId}`);
+                response = await fetch(`${baseUrl}/api/cart/decrease/${itemId}`, {
                     method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json',
-                        // 'Authorization': `Bearer ${localStorage.getItem('token')}`
                     }
                 });
             }
             
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.message || 'Không thể cập nhật số lượng');
-            }
-            
             const result = await response.json();
+            console.log('🔍 API Response:', result);
             
             if (!result.success) {
                 throw new Error(result.message || 'Lỗi cập nhật số lượng');
             }
             
-            // Cập nhật state
-            setCart(prev => ({
-                ...prev,
-                items: prev.items.map(item => {
-                    if (item.id === itemId) {
-                        return { ...item, quantity: newQuantity };
-                    }
-                    return item;
-                })
-            }));
+            // ✅ SỬA: Reload cart thay vì update local state
+            await fetchCartData();
             
         } catch (err: any) {
             console.error('❌ Error updating quantity:', err);
@@ -162,29 +161,24 @@ const Cart = () => {
     const handleRemoveItem = async (itemId: string) => {
         if (window.confirm('Bạn có chắc muốn xóa sản phẩm này khỏi giỏ hàng?')) {
             try {
+                console.log('🔍 Removing item:', itemId);
+                
                 const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/cart/remove/${itemId}`, {
                     method: 'DELETE',
                     headers: {
                         'Content-Type': 'application/json',
-                        // 'Authorization': `Bearer ${localStorage.getItem('token')}`
                     }
                 });
                 
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.message || 'Không thể xóa sản phẩm');
-                }
-                
                 const result = await response.json();
+                console.log('🔍 Remove API Response:', result);
                 
                 if (!result.success) {
                     throw new Error(result.message || 'Lỗi xóa sản phẩm');
                 }
                 
-                setCart(prev => ({
-                    ...prev,
-                    items: prev.items.filter(item => item.id !== itemId)
-                }));
+                // ✅ SỬA: Reload cart thay vì update local state
+                await fetchCartData();
                 
             } catch (err: any) {
                 console.error('❌ Error removing item:', err);
