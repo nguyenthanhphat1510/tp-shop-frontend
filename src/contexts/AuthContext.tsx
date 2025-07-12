@@ -1,8 +1,8 @@
 "use client";
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User } from '@/types/auth';
-import { authService } from '@/services/AuthService/authService';
-import { toast } from 'react-toastify'; // ✅ Import toast
+import { authService, TokenManager } from '@/services/AuthService/authService';
+import { toast } from 'react-toastify';
 
 interface AuthContextType {
     // States
@@ -33,18 +33,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const [showRegisterModal, setShowRegisterModal] = useState(false);
     const [loading, setLoading] = useState(false);
 
-    // Check localStorage on app start
+    // ✅ Check tokens on app start
     useEffect(() => {
-        const token = localStorage.getItem('token');
         const savedUser = localStorage.getItem('user');
+        const refreshToken = TokenManager.getRefreshToken();
         
-        if (token && savedUser) {
+        if (savedUser && refreshToken) {
             try {
                 setUser(JSON.parse(savedUser));
+                // ✅ Thử refresh để lấy access token mới
+                authService.refreshToken().catch(() => {
+                    // Nếu refresh thất bại, clear data
+                    TokenManager.clearAll();
+                    setUser(null);
+                });
             } catch (error) {
-                console.error('Error parsing saved user:', error);
-                localStorage.removeItem('token');
-                localStorage.removeItem('user');
+                console.error('Error restoring auth state:', error);
+                TokenManager.clearAll();
             }
         }
     }, []);
@@ -67,32 +72,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             
             const response = await authService.login({ email, password });
             
-            if (response.success && response.token && response.user) {
-                const contextUser: User = {
-                    id: response.user.id,
-                    email: response.user.email,
-                    name: response.user.name,
-                };
-                
-                localStorage.setItem('token', response.token);
-                localStorage.setItem('user', JSON.stringify(contextUser));
-                setUser(contextUser);
+            if (response.success && response.user) {
+                setUser(response.user);
                 setShowLoginModal(false);
-                
-                // ✅ SUCCESS TOAST - đơn giản
-                toast.success(`Chào mừng ${contextUser.name}! Đăng nhập thành công.`);
-                
-                console.log('✅ Login success:', contextUser);
+                toast.success(`Chào mừng ${response.user.name}! Đăng nhập thành công.`);
             } else {
                 throw new Error(response.message || 'Đăng nhập thất bại');
             }
         } catch (error: any) {
             console.error('❌ Login error:', error);
-            
-            // ✅ ERROR TOAST - đơn giản
             toast.error(error.message || 'Email hoặc mật khẩu không đúng');
-            
-            throw new Error(error.message || 'Đăng nhập thất bại');
+            throw error;
         } finally {
             setLoading(false);
         }
@@ -110,42 +100,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             });
             
             if (response.success) {
-                if (response.token && response.user) {
-                    const contextUser: User = {
-                        id: response.user.id,
-                        email: response.user.email,
-                        name: response.user.name,
-                        phone: userData.phone || '',
-                    };
-                    
-                    localStorage.setItem('token', response.token);
-                    localStorage.setItem('user', JSON.stringify(contextUser));
-                    setUser(contextUser);
-                    
-                    // ✅ SUCCESS TOAST - đơn giản
-                    toast.success(`Chào mừng ${contextUser.name}! Đăng ký thành công.`);
-                } else {
-                    // ✅ SUCCESS TOAST - đơn giản
-                    toast.success('Đăng ký thành công! Vui lòng đăng nhập.');
-                }
-                
                 setShowRegisterModal(false);
                 
-                if (!response.token) {
+                if (response.token && response.user) {
+                    setUser(response.user);
+                    toast.success(`Chào mừng ${response.user.name}! Đăng ký thành công.`);
+                } else {
+                    toast.success('Đăng ký thành công! Vui lòng đăng nhập.');
                     switchToLogin();
                 }
-                
-                console.log('✅ Register success:', response.user);
             } else {
                 throw new Error(response.message || 'Đăng ký thất bại');
             }
         } catch (error: any) {
             console.error('❌ Register error:', error);
-            
-            // ✅ ERROR TOAST - đơn giản
             toast.error(error.message || 'Có lỗi xảy ra khi đăng ký');
-            
-            throw new Error(error.message || 'Đăng ký thất bại');
+            throw error;
         } finally {
             setLoading(false);
         }
@@ -154,21 +124,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // ✅ LOGOUT - đơn giản
     const logout = () => {
         try {
-            authService.logout();
-            
             const userName = user?.name || 'bạn';
+            authService.logout();
             setUser(null);
             setShowLoginModal(false);
             setShowRegisterModal(false);
-            
-            // ✅ SUCCESS TOAST - đơn giản
             toast.info(`Tạm biệt ${userName}! Đăng xuất thành công.`);
-            
-            console.log('✅ Logout success');
         } catch (error: any) {
             console.error('❌ Logout error:', error);
-            
-            // ✅ ERROR TOAST - đơn giản
             toast.error('Có lỗi xảy ra khi đăng xuất');
         }
     };
