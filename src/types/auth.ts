@@ -19,3 +19,11 @@ export interface RegisterRequest {
     password: string;
     phone?: string;
 }
+
+export interface ApiResponse<T = any> {
+  success: boolean;
+  data: T;
+  message?: string;
+  error?: string;
+  statusCode?: number;
+}

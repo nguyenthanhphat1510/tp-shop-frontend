@@ -4,6 +4,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { cartService } from '@/services';
+import { orderService, CreateOrderData } from '@/services/OrderService/orderService';
 
 // Định nghĩa các interface
 interface CartItem {
@@ -18,12 +19,7 @@ interface CartItem {
 interface ShippingInfo {
     fullName: string;
     phone: string;
-    email: string;
     address: string;
-    city: string;
-    district: string;
-    ward: string;
-    notes: string;
 }
 
 interface PaymentMethod {
@@ -47,16 +43,11 @@ const Checkout = () => {
     const [discount, setDiscount] = useState(0);
     const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>('cod');
 
-    // Shipping info state
+    // Shipping info state (đã bỏ email, city, district, ward, notes)
     const [shippingInfo, setShippingInfo] = useState<ShippingInfo>({
         fullName: '',
         phone: '',
-        email: '',
-        address: '',
-        city: '',
-        district: '',
-        ward: '',
-        notes: ''
+        address: ''
     });
 
     // Dữ liệu mẫu cho phương thức thanh toán
@@ -68,22 +59,10 @@ const Checkout = () => {
             icon: 'fas fa-money-bill-wave'
         },
         {
-            id: 'banking',
-            name: 'Chuyển khoản ngân hàng',
-            description: 'Chuyển khoản qua tài khoản ngân hàng',
-            icon: 'fas fa-university'
-        },
-        {
             id: 'momo',
             name: 'Ví MoMo',
             description: 'Thanh toán qua ví điện tử MoMo',
             icon: 'fas fa-wallet'
-        },
-        {
-            id: 'zalopay',
-            name: 'ZaloPay',
-            description: 'Thanh toán qua ví điện tử ZaloPay',
-            icon: 'fas fa-qrcode'
         }
     ];
 
@@ -102,33 +81,13 @@ const Checkout = () => {
     const fetchCartData = async () => {
         try {
             setLoading(true);
-            
-            // Thử lấy dữ liệu từ cartService
-            // const cartData = await cartService.getCart();
-            
-            // Dữ liệu mẫu nếu API chưa hoạt động
-            const mockCartItems: CartItem[] = [
-                {
-                    id: '1',
-                    productId: '68662d458874aa4a581af6bf',
-                    name: 'iPhone 13 Pro Max 128GB',
-                    price: 27990000,
-                    quantity: 1,
-                    imageUrl: 'https://cdn.tgdd.vn/Products/Images/42/230529/iphone-13-pro-max-gold-1-600x600.jpg'
-                },
-                {
-                    id: '2',
-                    productId: '68662d458874aa4a581af6c0',
-                    name: 'Tai nghe AirPods Pro',
-                    price: 4990000,
-                    quantity: 2,
-                    imageUrl: 'https://cdn.tgdd.vn/Products/Images/54/236026/airpods-pro-wireless-charge-apple-mwp22-ava-600x600.jpg'
-                }
-            ];
-            
-            setCartItems(mockCartItems);
-            setShippingFee(30000); // Phí vận chuyển mẫu: 30,000đ
-            
+
+            // Lấy dữ liệu thật từ cartService
+            const cartData = await cartService.getCart();
+            // Giả sử cartData.items là mảng sản phẩm
+            setCartItems(cartData.items || []);
+            setShippingFee(cartData.shippingFee || 30000);
+
         } catch (err: any) {
             console.error('❌ Error fetching cart:', err);
             setError(err.message || 'Không thể tải giỏ hàng');
@@ -138,7 +97,7 @@ const Checkout = () => {
     };
 
     // Xử lý thay đổi thông tin giao hàng
-    const handleShippingInfoChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const handleShippingInfoChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
         setShippingInfo(prev => ({ ...prev, [name]: value }));
     };
@@ -167,7 +126,7 @@ const Checkout = () => {
     const handleNextStep = () => {
         if (step === 1) {
             // Validate shipping info
-            if (!shippingInfo.fullName || !shippingInfo.phone || !shippingInfo.address || !shippingInfo.city) {
+            if (!shippingInfo.fullName || !shippingInfo.phone || !shippingInfo.address) {
                 alert('Vui lòng điền đầy đủ thông tin giao hàng');
                 return;
             }
@@ -193,36 +152,72 @@ const Checkout = () => {
     const handlePlaceOrder = async () => {
         try {
             setLoading(true);
+
+            // Chuẩn bị dữ liệu đặt hàng
+            const orderData: CreateOrderData = {
+                shippingInfo: {
+                    fullName: shippingInfo.fullName,
+                    phone: shippingInfo.phone,
+                    address: shippingInfo.address
+                },
+                paymentMethod: selectedPaymentMethod as 'cod' | 'momo' | 'zalopay',
+                createFromCart: true
+            };
+
+            console.log('📦 Đang đặt hàng:', orderData);
             
-            // Tạo đơn hàng
-            const orderData = {
-                items: cartItems,
-                shippingInfo,
-                paymentMethod: selectedPaymentMethod,
-                totalPrice,
-                shippingFee,
-                discount
+            // Gọi API tạo đơn hàng
+            const response = await orderService.createOrder(orderData);
+            
+            if (response.success) {
+                console.log('✅ Đặt hàng thành công:', response.data);
+                
+                // Chuyển đến trang xác nhận đơn hàng
+                router.push(`/order-success?orderNumber=${response.data.orderNumber}`);
+            } else {
+                throw new Error(response.message || 'Đặt hàng thất bại');
+            }
+            
+        } catch (error: any) {
+            console.error('❌ Lỗi đặt hàng:', error);
+            alert(error.message || 'Không thể đặt hàng. Vui lòng thử lại.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Xử lý đặt hàng trực tiếp (Buy Now)
+    const handleBuyNow = async (productId: string, quantity: number = 1) => {
+        try {
+            setLoading(true);
+            
+            const orderData: CreateOrderData = {
+                shippingInfo: {
+                    fullName: shippingInfo.fullName,
+                    phone: shippingInfo.phone,
+                    address: shippingInfo.address
+                },
+                paymentMethod: selectedPaymentMethod as 'cod' | 'momo' | 'zalopay',
+                createFromCart: false,
+                items: [
+                    {
+                        productId,
+                        quantity
+                    }
+                ]
             };
             
-            console.log('📦 Đặt hàng:', orderData);
+            const response = await orderService.createOrder(orderData);
             
-            // Gọi API tạo đơn hàng (sẽ thực hiện sau)
-            // const response = await fetch('/api/orders', {
-            //     method: 'POST',
-            //     headers: { 'Content-Type': 'application/json' },
-            //     body: JSON.stringify(orderData)
-            // });
+            if (response.success) {
+                router.push(`/order-success?orderNumber=${response.data.orderNumber}`);
+            } else {
+                throw new Error(response.message || 'Đặt hàng thất bại');
+            }
             
-            // Giả lập thành công
-            setTimeout(() => {
-                // Chuyển đến trang xác nhận đơn hàng
-                alert('Đặt hàng thành công!');
-                router.push('/order-success');
-            }, 1500);
-            
-        } catch (err: any) {
-            console.error('❌ Error placing order:', err);
-            alert(err.message || 'Không thể đặt hàng');
+        } catch (error: any) {
+            console.error('❌ Lỗi đặt hàng trực tiếp:', error);
+            alert(error.message || 'Không thể đặt hàng. Vui lòng thử lại.');
         } finally {
             setLoading(false);
         }
@@ -298,10 +293,9 @@ const Checkout = () => {
                         {step === 1 && (
                             <div className="shipping-info">
                                 <h2 className="text-xl font-semibold mb-4">Thông tin giao hàng</h2>
-                                
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="grid grid-cols-1 gap-4">
                                     {/* Full Name */}
-                                    <div className="md:col-span-2">
+                                    <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-1">
                                             Họ và tên <span className="text-red-500">*</span>
                                         </label>
@@ -315,7 +309,6 @@ const Checkout = () => {
                                             required
                                         />
                                     </div>
-                                    
                                     {/* Phone */}
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -331,107 +324,19 @@ const Checkout = () => {
                                             required
                                         />
                                     </div>
-                                    
-                                    {/* Email */}
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                                            Email
-                                        </label>
-                                        <input
-                                            type="email"
-                                            name="email"
-                                            value={shippingInfo.email}
-                                            onChange={handleShippingInfoChange}
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                            placeholder="Nhập email"
-                                        />
-                                    </div>
-                                    
-                                    {/* City */}
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                                            Tỉnh/Thành phố <span className="text-red-500">*</span>
-                                        </label>
-                                        <select
-                                            name="city"
-                                            value={shippingInfo.city}
-                                            onChange={handleShippingInfoChange}
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                            required
-                                        >
-                                            <option value="">Chọn Tỉnh/Thành phố</option>
-                                            <option value="Hà Nội">Hà Nội</option>
-                                            <option value="Hồ Chí Minh">Hồ Chí Minh</option>
-                                            <option value="Đà Nẵng">Đà Nẵng</option>
-                                        </select>
-                                    </div>
-                                    
-                                    {/* District */}
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                                            Quận/Huyện <span className="text-red-500">*</span>
-                                        </label>
-                                        <select
-                                            name="district"
-                                            value={shippingInfo.district}
-                                            onChange={handleShippingInfoChange}
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                            required
-                                        >
-                                            <option value="">Chọn Quận/Huyện</option>
-                                            <option value="Quận 1">Quận 1</option>
-                                            <option value="Quận 2">Quận 2</option>
-                                            <option value="Quận 3">Quận 3</option>
-                                        </select>
-                                    </div>
-                                    
-                                    {/* Ward */}
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                                            Phường/Xã <span className="text-red-500">*</span>
-                                        </label>
-                                        <select
-                                            name="ward"
-                                            value={shippingInfo.ward}
-                                            onChange={handleShippingInfoChange}
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                            required
-                                        >
-                                            <option value="">Chọn Phường/Xã</option>
-                                            <option value="Phường Bến Nghé">Phường Bến Nghé</option>
-                                            <option value="Phường Bến Thành">Phường Bến Thành</option>
-                                            <option value="Phường Cầu Kho">Phường Cầu Kho</option>
-                                        </select>
-                                    </div>
-                                    
                                     {/* Address */}
-                                    <div className="md:col-span-2">
+                                    <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-1">
                                             Địa chỉ <span className="text-red-500">*</span>
                                         </label>
-                                        <input
-                                            type="text"
+                                        <textarea
                                             name="address"
                                             value={shippingInfo.address}
                                             onChange={handleShippingInfoChange}
                                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                            placeholder="Nhập địa chỉ cụ thể"
-                                            required
-                                        />
-                                    </div>
-                                    
-                                    {/* Notes */}
-                                    <div className="md:col-span-2">
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                                            Ghi chú
-                                        </label>
-                                        <textarea
-                                            name="notes"
-                                            value={shippingInfo.notes}
-                                            onChange={handleShippingInfoChange}
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                            placeholder="Ghi chú cho đơn hàng (nếu có)"
+                                            placeholder="Nhập địa chỉ chi tiết"
                                             rows={3}
+                                            required
                                         ></textarea>
                                     </div>
                                 </div>
@@ -509,14 +414,8 @@ const Checkout = () => {
                                         <p className="font-medium">{shippingInfo.fullName}</p>
                                         <p>Điện thoại: {shippingInfo.phone}</p>
                                         <p>
-                                            Địa chỉ: {shippingInfo.address}, {shippingInfo.ward}, {shippingInfo.district}, {shippingInfo.city}
+                                            Địa chỉ: {shippingInfo.address}
                                         </p>
-                                        {shippingInfo.email && <p>Email: {shippingInfo.email}</p>}
-                                        {shippingInfo.notes && (
-                                            <div className="mt-2">
-                                                <p className="text-gray-600">Ghi chú: {shippingInfo.notes}</p>
-                                            </div>
-                                        )}
                                     </div>
                                     <button 
                                         onClick={() => setStep(1)}

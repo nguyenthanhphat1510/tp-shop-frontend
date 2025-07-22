@@ -1,10 +1,12 @@
 "use client";
+
 import React, { useState, useEffect } from 'react';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import { Navigation, Pagination, Zoom } from 'swiper/modules';
 import Image from 'next/image';
 import Link from 'next/link';
 import { cartService } from '../../services';
+import { useAuth } from '@/contexts/AuthContext';
 
 // Import Swiper styles
 import 'swiper/css';
@@ -24,6 +26,10 @@ const ProductDetail = ({ productId }: ProductDetailProps) => {
     const [error, setError] = useState<string | null>(null);
     const [relatedProducts, setRelatedProducts] = useState<Product[]>([]);
     const [quantity, setQuantity] = useState(1);
+
+        // Helper: kiểm tra đã đăng nhập (có token trong localStorage)
+  const isLoggedIn = typeof window !== 'undefined' && (!!localStorage.getItem('token') || !!localStorage.getItem('accessToken'));
+        const { setShowLoginModal } = useAuth();
 
     useEffect(() => {
         fetchProductDetail();
@@ -113,6 +119,13 @@ const ProductDetail = ({ productId }: ProductDetailProps) => {
 
     const handleAddToCart = async () => {
         if (!product) return;
+
+          // ✅ Kiểm tra đăng nhập trước khi thêm vào giỏ hàng
+        if (!isLoggedIn) {
+            // ✅ Hiện popup đăng nhập thay vì chuyển trang
+            setShowLoginModal(true);
+            return;
+        }
         
         try {
             const cartItem = await cartService.addToCart({
