@@ -14,7 +14,8 @@ const apiClient = axios.create({
 
 // Add token interceptor
 apiClient.interceptors.request.use((config) => {
-    const token = localStorage.getItem('token');
+    // Lấy token từ cả hai key
+    const token = localStorage.getItem('token') || localStorage.getItem('accessToken');
     if (token) {
         config.headers.Authorization = `Bearer ${token}`;
     }

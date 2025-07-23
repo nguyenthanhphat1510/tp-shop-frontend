@@ -29,7 +29,7 @@ const ProductDetail = ({ productId }: ProductDetailProps) => {
 
         // Helper: kiểm tra đã đăng nhập (có token trong localStorage)
   const isLoggedIn = typeof window !== 'undefined' && (!!localStorage.getItem('token') || !!localStorage.getItem('accessToken'));
-        const { setShowLoginModal } = useAuth();
+        const { isAuthenticated, setShowLoginModal } = useAuth();
 
     useEffect(() => {
         fetchProductDetail();
@@ -120,9 +120,7 @@ const ProductDetail = ({ productId }: ProductDetailProps) => {
     const handleAddToCart = async () => {
         if (!product) return;
 
-          // ✅ Kiểm tra đăng nhập trước khi thêm vào giỏ hàng
-        if (!isLoggedIn) {
-            // ✅ Hiện popup đăng nhập thay vì chuyển trang
+        if (!isAuthenticated) {
             setShowLoginModal(true);
             return;
         }
