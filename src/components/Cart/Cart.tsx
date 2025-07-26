@@ -105,29 +105,54 @@ const Cart = () => {
         try {
             const token = typeof window !== 'undefined' ? localStorage.getItem('token') || localStorage.getItem('accessToken') : null;
             const item = cart.items.find(item => item.id === itemId);
-            if (!item) return;
+            
+            if (!item) {
+                console.error('❌ Item not found in frontend cart:', itemId);
+                console.log('📋 Available items:', cart.items.map(i => ({ id: i.id, name: i.name })));
+                return;
+            }
+            
             if (newQuantity > item.stock) {
                 alert(`Chỉ còn ${item.stock} sản phẩm trong kho`);
                 return;
             }
-            let response;
+
+            console.log('🔍 Debug info:', {
+                itemId,
+                productId: item.productId, // Thêm log productId
+                item,
+                newQuantity,
+                currentQuantity: item.quantity,
+                action: newQuantity > item.quantity ? 'increase' : 'decrease'
+            });
+
             const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
             const headers = {
                 'Content-Type': 'application/json',
                 ...(token ? { Authorization: `Bearer ${token}` } : {})
             };
+
+            // ✅ SỬA: Dùng productId thay vì itemId
+            const targetId = item.productId; 
+
+            let response;
             if (newQuantity > item.quantity) {
-                response = await fetch(`${baseUrl}/api/cart/increase/${itemId}`, {
+                console.log(`🔼 Calling increase API for productId: ${targetId}`);
+                response = await fetch(`${baseUrl}/api/cart/increase/${targetId}`, {
                     method: 'PUT',
                     headers
                 });
             } else {
-                response = await fetch(`${baseUrl}/api/cart/decrease/${itemId}`, {
+                console.log(`🔽 Calling decrease API for productId: ${targetId}`);
+                response = await fetch(`${baseUrl}/api/cart/decrease/${targetId}`, {
                     method: 'PUT',
                     headers
                 });
             }
+
             const result = await response.json();
+            console.log('📡 API Response:', result);
+            
             if (!result.success) throw new Error(result.message || 'Lỗi cập nhật số lượng');
             await fetchCartData();
         } catch (err: any) {

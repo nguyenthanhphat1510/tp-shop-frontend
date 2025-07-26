@@ -4,19 +4,20 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
 
 // ✅ Secure token manager
 class TokenManager {
-    private static accessToken: string = ''; // Memory only - secure
-    
-    // Access Token - Memory (bảo mật nhất)
+    // XÓA biến RAM
+    // private static accessToken: string = '';
+
+    // Lưu access token vào localStorage
     static setAccessToken(token: string) {
-        this.accessToken = token;
+        localStorage.setItem('accessToken', token);
     }
-    
+
     static getAccessToken(): string {
-        return this.accessToken;
+        return localStorage.getItem('accessToken') || '';
     }
-    
+
     static clearAccessToken() {
-        this.accessToken = '';
+        localStorage.removeItem('accessToken');
     }
     
     // Refresh Token - localStorage với encryption (fallback)

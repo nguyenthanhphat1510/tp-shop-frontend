@@ -71,8 +71,8 @@ class OrderService {
 
       const response = await axios.post(`${this.baseUrl}/orders`, orderData, {
         headers: {
-          // 'Content-Type': 'application/json',
-          // // 'Authorization': `Bearer ${token}`
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}` // <-- BẮT BUỘC PHẢI CÓ DÒNG NÀY
         }
       });
 
