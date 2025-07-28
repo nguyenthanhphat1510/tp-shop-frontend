@@ -1,7 +1,9 @@
 "use client";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useParams } from "next/navigation";
+import { orderService } from "@/services/OrderService/orderService"; // Đảm bảo đã có service này
 
 const statusSteps = [
     { key: "PENDING", label: "Đã đặt hàng" },
@@ -19,45 +21,53 @@ const statusColors = {
     CANCELLED: "bg-gray-400",
 };
 
-// Dữ liệu tĩnh mẫu
-const mockOrder = {
-    orderNumber: "DH123456",
-    id: "orderid123",
-    createdAt: "2025-07-26T10:00:00.000Z",
-    status: "SHIPPING",
-    shippingInfo: {
-        fullName: "Nguyễn Văn A",
-        phone: "0901234567",
-        address: "123 Lê Lợi, Quận 1, TP.HCM",
-    },
-    items: [
-        {
-            productId: "p1",
-            productName: "iPhone 16 Pro Max",
-            imageUrl:
-                "https://res.cloudinary.com/thanhphat/image/upload/v1751341485/tpshop/products/iart1wz5z81kj76btdvo.jpg",
-            price: 29990000,
-            quantity: 1,
-        },
-        {
-            productId: "p2",
-            productName: "iPhone 16",
-            imageUrl:
-                "https://res.cloudinary.com/thanhphat/image/upload/v1751341731/tpshop/products/og9wzzgrqcw4p3kew3ey.jpg",
-            price: 19990000,
-            quantity: 2,
-        },
-    ],
-    paymentMethod: "cod",
-    total: 29990000 + 19990000 * 2,
-};
-
 const OrderDetailPage = () => {
-    // Dùng dữ liệu tĩnh thay vì gọi API
-    const order = mockOrder;
+    const params = useParams();
+    const orderId = params?.orderId as string;
+    const [order, setOrder] = useState<any>(null);
+    const [loading, setLoading] = useState(true);
 
-    // Xác định trạng thái hiện tại
-    const currentStep = statusSteps.findIndex((s) => s.key === order.status);
+    useEffect(() => {
+        if (orderId) {
+            fetchOrder();
+        }
+    }, [orderId]);
+
+    const fetchOrder = async () => {
+        try {
+            setLoading(true);
+            const res = await orderService.getOrderById(orderId);
+            setOrder(res.data);
+        } catch (err: any) {
+            alert(err.message || "Không thể tải chi tiết đơn hàng");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    if (loading) {
+        return (
+            <div className="flex justify-center items-center min-h-[60vh]">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-400"></div>
+            </div>
+        );
+    }
+
+    if (!order) {
+        return (
+            <div className="text-center py-16">
+                <div className="text-4xl mb-4">⚠️</div>
+                <p>Không tìm thấy đơn hàng</p>
+                <Link href="/orders">
+                    <button className="mt-4 px-5 py-2 bg-blue-500 text-white rounded shadow hover:bg-blue-600">
+                        Quay lại danh sách đơn hàng
+                    </button>
+                </Link>
+            </div>
+        );
+    }
+
+    const currentStep = statusSteps.findIndex((s) => s.key === order.status?.toUpperCase());
 
     return (
         <div className="max-w-3xl mx-auto px-2 py-8">
@@ -148,8 +158,8 @@ const OrderDetailPage = () => {
                 <div className="mb-4">
                     <div className="font-semibold mb-2 text-gray-700">Sản phẩm</div>
                     <div className="divide-y divide-gray-200">
-                        {order.items?.map((item: any) => (
-                            <div key={item.productId} className="flex py-3 items-center">
+                        {order.items?.map((item: any, idx: number) => (
+                            <div key={item.productId || idx} className="flex py-3 items-center">
                                 <div className="w-14 h-14 bg-gray-200 rounded-lg overflow-hidden flex-shrink-0 border">
                                     <Image
                                         src={item.imageUrl}

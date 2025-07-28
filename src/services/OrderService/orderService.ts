@@ -86,13 +86,13 @@ class OrderService {
   // 📋 Lấy danh sách đơn hàng
   async getOrders(): Promise<ApiResponse<Order[]>> {
     try {
-      // const token = this.getAuthToken();
-      // if (!token) throw new Error('Vui lòng đăng nhập để xem đơn hàng');
+      const token = this.getAuthToken();
+      if (!token) throw new Error('Vui lòng đăng nhập để xem đơn hàng');
 
       const response = await axios.get(`${this.baseUrl}/orders`, {
         headers: {
           'Content-Type': 'application/json',
-          // 'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${token}` // <-- Bỏ comment dòng này!
         }
       });
 
@@ -106,13 +106,13 @@ class OrderService {
   // 🔍 Lấy chi tiết đơn hàng
   async getOrderById(orderId: string): Promise<ApiResponse<Order>> {
     try {
-      // const token = this.getAuthToken();
-      // if (!token) throw new Error('Vui lòng đăng nhập để xem đơn hàng');
+      const token = this.getAuthToken();
+      if (!token) throw new Error('Vui lòng đăng nhập để xem đơn hàng');
 
       const response = await axios.get(`${this.baseUrl}/orders/${orderId}`, {
         headers: {
           'Content-Type': 'application/json',
-          // 'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${token}` // <-- Bỏ comment dòng này!
         }
       });
 
@@ -126,13 +126,13 @@ class OrderService {
   // ❌ Hủy đơn hàng
   async cancelOrder(orderId: string, reason?: string): Promise<ApiResponse<Order>> {
     try {
-      // const token = this.getAuthToken();
-      // if (!token) throw new Error('Vui lòng đăng nhập để hủy đơn hàng');
+      const token = this.getAuthToken();
+      if (!token) throw new Error('Vui lòng đăng nhập để hủy đơn hàng');
 
       const response = await axios.patch(`${this.baseUrl}/orders/${orderId}/cancel`, { reason }, {
         headers: {
           'Content-Type': 'application/json',
-          // 'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${token}` // <-- Bỏ comment dòng này!
         }
       });
 
