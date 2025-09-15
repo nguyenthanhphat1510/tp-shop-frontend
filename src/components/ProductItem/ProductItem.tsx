@@ -19,6 +19,11 @@ const ProductItem = ({ product }: ProductItemProps) => {
     return categoryMap[categoryId] || 'Sản phẩm';
   };
 
+  // Lấy ảnh đầu tiên hoặc placeholder
+  const firstImage = product.imageUrls && product.imageUrls.length > 0
+    ? product.imageUrls[0]
+    : '/placeholder.jpg';
+
   return (
     <div className="rounded-lg overflow-hidden transition-shadow group">
       <div 
@@ -48,7 +53,7 @@ const ProductItem = ({ product }: ProductItemProps) => {
               }}
             >
               <Image 
-                src={product.imageUrl || '/placeholder.jpg'} 
+                src={firstImage}
                 alt={product.name}
                 fill
                 className="object-cover"

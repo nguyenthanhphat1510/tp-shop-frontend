@@ -1,28 +1,29 @@
+import { Metadata } from 'next';
 import ProductDetail from '@/components/ProductDetail/ProductDetail';
 
 interface PageProps {
-    params: {
-        id: string;  // 🎯 Next.js tự động truyền ID từ URL vào đây
+    params: Promise<{ id: string }>;
+}
+
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+    const resolvedParams = await params;
+    const id = resolvedParams.id;
+    
+    return {
+        title: `Chi tiết sản phẩm - ${id}`,
+        description: `Xem chi tiết sản phẩm với ID ${id}`,
     };
 }
 
-export default function ProductDetailPage({ params }: PageProps) {
-    console.log('📄 Page received product ID:', params.id);
-
+export default async function ProductDetailPage({ params }: PageProps) {
+    const resolvedParams = await params;
+    const id = resolvedParams.id;
+    
     return (
         <div className="min-h-screen bg-gray-50">
             <div className="container mx-auto px-4 py-8">
-                {/* 🎯 TRUYỀN: Truyền productId cho ProductDetail component */}
-                <ProductDetail productId={params.id} />
+                <ProductDetail productId={id} />
             </div>
         </div>
     );
-}
-
-// Optional: Generate metadata for SEO
-export async function generateMetadata({ params }: PageProps) {
-    return {
-        title: `Chi tiết sản phẩm - ${params.id}`,
-        description: `Xem chi tiết sản phẩm với ID ${params.id}`,
-    };
 }

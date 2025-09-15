@@ -1,26 +1,5 @@
+import apiClient from '../utils/apiClient';
 import axios from 'axios';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
-const API_PATH = '/api/cart';
-
-// Create axios instance with config
-const apiClient = axios.create({
-    baseURL: API_URL,
-    timeout: 10000,
-    headers: {
-        'Content-Type': 'application/json',
-    }
-});
-
-// Add token interceptor
-apiClient.interceptors.request.use((config) => {
-    // Lấy token từ cả hai key
-    const token = localStorage.getItem('token') || localStorage.getItem('accessToken');
-    if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-});
 
 export interface CartItem {
     id: string;
@@ -70,49 +49,34 @@ const transformCartItem = (item: any): CartItem => {
     };
 };
 
-// Cart Service
+// ✅ Cart Service với endpoints thống nhất
 export const cartService = {
     // Thêm sản phẩm vào giỏ hàng
     addToCart: async (data: AddToCartRequest): Promise<CartItem> => {
         try {
-            console.log('🔍 Calling Add to Cart API:', `${API_URL}${API_PATH}/add`);
+            console.log('🛒 Adding to cart:', data);
             
-            if (!data.productId) {
-                throw new Error('Product ID is required');
+            // ✅ Bỏ /api prefix vì apiClient đã có baseURL = '/api'
+            const response = await apiClient.post('/cart/add', data);
+            
+            if (response.data.success && response.data.data) {
+                return transformCartItem(response.data.data.cartItem);
             }
             
-            if (!data.quantity || data.quantity < 1) {
-                data.quantity = 1;
-            }
-
-            const response = await apiClient.post(`${API_PATH}/add`, data);
-            
-            console.log('📦 Raw API Response:', response.data);
-            
-            if (!response.data.success) {
-                throw new Error(response.data.message || 'Failed to add to cart');
-            }
-            
-            return transformCartItem(response.data.data.cartItem);
-            
-        } catch (error: unknown) {
+            throw new Error(response.data.message || 'Failed to add to cart');
+        } catch (error: any) {
             console.error('❌ Error adding to cart:', error);
-            
-            if (axios.isAxiosError(error) && error.response) {
-                console.error('❌ Response error:', error.response.data);
-                throw new Error(error.response.data.message || 'Failed to add to cart');
-            }
-            
-            throw error;
+            throw new Error(error.response?.data?.message || 'Lỗi khi thêm vào giỏ hàng');
         }
     },
     
     // Lấy giỏ hàng
     getCart: async (): Promise<Cart> => {
         try {
-            console.log('🔍 Calling Get Cart API:', `${API_URL}${API_PATH}`);
+            console.log('🔍 Calling Get Cart API: /cart');
             
-            const response = await apiClient.get(API_PATH);
+            // ✅ Đơn giản hóa endpoint
+            const response = await apiClient.get('/cart');
             
             console.log('📦 Raw API Response:', response.data);
             
@@ -150,9 +114,10 @@ export const cartService = {
     // Tăng số lượng sản phẩm
     increaseQuantity: async (cartItemId: string): Promise<CartItem> => {
         try {
-            console.log('🔍 Calling Increase Quantity API:', `${API_URL}${API_PATH}/increase/${cartItemId}`);
+            console.log('🔍 Calling Increase Quantity API: /cart/increase/' + cartItemId);
             
-            const response = await apiClient.put(`${API_PATH}/increase/${cartItemId}`);
+            // ✅ Endpoint đơn giản
+            const response = await apiClient.put(`/cart/increase/${cartItemId}`);
             
             if (!response.data.success) {
                 throw new Error(response.data.message || 'Failed to increase quantity');
@@ -174,9 +139,9 @@ export const cartService = {
     // Giảm số lượng sản phẩm
     decreaseQuantity: async (cartItemId: string): Promise<CartItem | {removed: boolean, cartItemId: string}> => {
         try {
-            console.log('🔍 Calling Decrease Quantity API:', `${API_URL}${API_PATH}/decrease/${cartItemId}`);
+            console.log('🔍 Calling Decrease Quantity API: /cart/decrease/' + cartItemId);
             
-            const response = await apiClient.put(`${API_PATH}/decrease/${cartItemId}`);
+            const response = await apiClient.put(`/cart/decrease/${cartItemId}`);
             
             if (!response.data.success) {
                 throw new Error(response.data.message || 'Failed to decrease quantity');
@@ -203,9 +168,9 @@ export const cartService = {
     // Xóa sản phẩm khỏi giỏ hàng
     removeFromCart: async (cartItemId: string): Promise<{removed: boolean, cartItemId: string}> => {
         try {
-            console.log('🔍 Calling Remove From Cart API:', `${API_URL}${API_PATH}/remove/${cartItemId}`);
+            console.log('🔍 Calling Remove From Cart API: /cart/remove/' + cartItemId);
             
-            const response = await apiClient.delete(`${API_PATH}/remove/${cartItemId}`);
+            const response = await apiClient.delete(`/cart/remove/${cartItemId}`);
             
             if (!response.data.success) {
                 throw new Error(response.data.message || 'Failed to remove item from cart');
@@ -227,9 +192,9 @@ export const cartService = {
     // Xóa toàn bộ giỏ hàng
     clearCart: async (): Promise<{deletedCount: number}> => {
         try {
-            console.log('🔍 Calling Clear Cart API:', `${API_URL}${API_PATH}/clear`);
+            console.log('🔍 Calling Clear Cart API: /cart/clear');
             
-            const response = await apiClient.delete(`${API_PATH}/clear`);
+            const response = await apiClient.delete('/cart/clear');
             
             if (!response.data.success) {
                 throw new Error(response.data.message || 'Failed to clear cart');
@@ -251,9 +216,9 @@ export const cartService = {
     // Validate giỏ hàng trước khi thanh toán
     validateCart: async (): Promise<{cartItems: CartItem[], totalItems: number, isValid: boolean}> => {
         try {
-            console.log('🔍 Calling Validate Cart API:', `${API_URL}${API_PATH}/validate`);
+            console.log('🔍 Calling Validate Cart API: /cart/validate');
             
-            const response = await apiClient.get(`${API_PATH}/validate`);
+            const response = await apiClient.get('/cart/validate');
             
             if (!response.data.success) {
                 throw new Error(response.data.message || 'Failed to validate cart');
@@ -282,9 +247,9 @@ export const cartService = {
     // Lấy số lượng item trong giỏ
     getCartCount: async (): Promise<number> => {
         try {
-            console.log('🔍 Calling Get Cart Count API:', `${API_URL}${API_PATH}/count`);
+            console.log('🔍 Calling Get Cart Count API: /cart/count');
             
-            const response = await apiClient.get(`${API_PATH}/count`);
+            const response = await apiClient.get('/cart/count');
             
             if (!response.data.success) {
                 throw new Error(response.data.message || 'Failed to get cart count');
@@ -306,9 +271,9 @@ export const cartService = {
     // Kiểm tra sản phẩm đã có trong giỏ chưa
     isProductInCart: async (productId: string): Promise<boolean> => {
         try {
-            console.log('🔍 Calling Check Product In Cart API:', `${API_URL}${API_PATH}/check/${productId}`);
+            console.log('🔍 Calling Check Product In Cart API: /cart/check/' + productId);
             
-            const response = await apiClient.get(`${API_PATH}/check/${productId}`);
+            const response = await apiClient.get(`/cart/check/${productId}`);
             
             if (!response.data.success) {
                 throw new Error(response.data.message || 'Failed to check product in cart');

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { cartService } from '@/services';
 import { orderService, CreateOrderData } from '@/services/OrderService/orderService';
+import { paymentService } from '@/services/PaymentService/paymentService';
 
 // Định nghĩa các interface
 interface CartItem {
@@ -153,31 +154,46 @@ const Checkout = () => {
         try {
             setLoading(true);
 
-            // Chuẩn bị dữ liệu đặt hàng
-            const orderData: CreateOrderData = {
-                shippingInfo: {
-                    fullName: shippingInfo.fullName,
-                    phone: shippingInfo.phone,
-                    address: shippingInfo.address
-                },
-                paymentMethod: selectedPaymentMethod as 'cod' | 'momo' | 'zalopay',
-                createFromCart: true
-            };
+            if (selectedPaymentMethod === 'momo') {
+                // Thanh toán MoMo - không tạo đơn hàng trước
+                const momoRes = await paymentService.createMomoPaymentFromCart({
+                    cartItems: cartItems,
+                    shippingInfo: {
+                        fullName: shippingInfo.fullName,
+                        phone: shippingInfo.phone,
+                        address: shippingInfo.address
+                    },
+                    amount: totalPrice, // Thay đổi từ totalAmount thành totalPrice
+                    orderInfo: 'Thanh toán đơn hàng TpShop'
+                });
 
-            console.log('📦 Đang đặt hàng:', orderData);
-            
-            // Gọi API tạo đơn hàng
-            const response = await orderService.createOrder(orderData);
-            
-            if (response.success) {
-                console.log('✅ Đặt hàng thành công:', response.data);
-                
-                // Chuyển đến trang xác nhận đơn hàng
-                router.push(`/order-success?orderNumber=${response.data.orderNumber}`);
+                if (momoRes.success && momoRes.data.payUrl) {
+                    // Chuyển đến trang thanh toán MoMo
+                    window.location.href = momoRes.data.payUrl;
+                    return;
+                } else {
+                    throw new Error(momoRes.message || 'Không thể tạo thanh toán MoMo');
+                }
             } else {
-                throw new Error(response.message || 'Đặt hàng thất bại');
+                // Thanh toán COD - tạo đơn hàng ngay
+                const orderData: CreateOrderData = {
+                    shippingInfo: {
+                        fullName: shippingInfo.fullName,
+                        phone: shippingInfo.phone,
+                        address: shippingInfo.address
+                    },
+                    paymentMethod: selectedPaymentMethod as 'cod',
+                    createFromCart: true
+                };
+
+                const response = await orderService.createOrder(orderData);
+
+                if (response.success) {
+                    router.push(`/order-success?orderId=${response.data.id}`);
+                } else {
+                    throw new Error(response.message || 'Đặt hàng thất bại');
+                }
             }
-            
         } catch (error: any) {
             console.error('❌ Lỗi đặt hàng:', error);
             alert(error.message || 'Không thể đặt hàng. Vui lòng thử lại.');
@@ -210,7 +226,7 @@ const Checkout = () => {
             const response = await orderService.createOrder(orderData);
             
             if (response.success) {
-                router.push(`/order-success?orderNumber=${response.data.orderNumber}`);
+                router.push(`/order-success?orderId=${response.data.id}`);
             } else {
                 throw new Error(response.message || 'Đặt hàng thất bại');
             }

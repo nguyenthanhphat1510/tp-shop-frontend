@@ -7,6 +7,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { cartService } from '../../services';
 import { useAuth } from '@/contexts/AuthContext';
+import { toast } from 'react-toastify';
 
 // Import Swiper styles
 import 'swiper/css';
@@ -29,7 +30,7 @@ const ProductDetail = ({ productId }: ProductDetailProps) => {
 
         // Helper: kiểm tra đã đăng nhập (có token trong localStorage)
   const isLoggedIn = typeof window !== 'undefined' && (!!localStorage.getItem('token') || !!localStorage.getItem('accessToken'));
-        const { isAuthenticated, setShowLoginModal } = useAuth();
+        const { isAuthenticated, setShowLoginModal, setCartCount } = useAuth();
 
     useEffect(() => {
         fetchProductDetail();
@@ -72,25 +73,29 @@ const ProductDetail = ({ productId }: ProductDetailProps) => {
     const getProductImages = () => {
         const images = [];
         
-        // Sử dụng imageUrls từ API nếu có (FIX: Kiểm tra imageUrls thay vì imageUrl)
-        if (product?.imageUrls && product.imageUrls.length > 0) {
+        // FIX 1: Kiểm tra và xử lý imageUrls từ API
+        if (product?.imageUrls && Array.isArray(product.imageUrls) && product.imageUrls.length > 0) {
             product.imageUrls.forEach((url, index) => {
-                images.push({
-                    url: url,
-                    alt: `${product.name} - Ảnh ${index + 1}`,
-                    isMain: index === 0
-                });
+                // FIX: Kiểm tra URL hợp lệ
+                if (url && typeof url === 'string' && url.trim()) {
+                    images.push({
+                        url: url.trim(),
+                        alt: `${product.name} - Ảnh ${index + 1}`,
+                        isMain: index === 0
+                    });
+                }
             });
-        } else if (product?.imageUrl) {
-            // Fallback cho imageUrl đơn
+        } 
+        // FIX 2: Fallback cho imageUrl đơn
+        else if (product?.imageUrl && typeof product.imageUrl === 'string' && product.imageUrl.trim()) {
             images.push({
-                url: product.imageUrl,
+                url: product.imageUrl.trim(),
                 alt: product.name,
                 isMain: true
             });
         }
         
-        // Nếu không có ảnh nào, sử dụng placeholder
+        // FIX 3: Placeholder mặc định
         if (images.length === 0) {
             images.push({
                 url: '/images/products/placeholder.jpg',
@@ -124,20 +129,23 @@ const ProductDetail = ({ productId }: ProductDetailProps) => {
             setShowLoginModal(true);
             return;
         }
-        
+
         try {
-            const cartItem = await cartService.addToCart({
+            await cartService.addToCart({
                 productId: product.id,
                 quantity: quantity
             });
-            
-            console.log('🛒 Thêm vào giỏ hàng thành công:', cartItem);
-            // Hiển thị thông báo thành công (với toast hoặc alert)
-            alert('Đã thêm sản phẩm vào giỏ hàng');
-            
+
+            toast.success('Đã thêm sản phẩm vào giỏ hàng!');
+
+            // Sau khi thêm, fetch lại giỏ hàng để cập nhật cartCount
+            const cartData = await cartService.getCart();
+            const items = cartData?.items || [];
+            setCartCount(items.length); // cập nhật số lượng mặt hàng cho badge
+
         } catch (error: any) {
             console.error('❌ Lỗi khi thêm vào giỏ hàng:', error);
-            alert(`Lỗi: ${error.message || 'Thêm vào giỏ hàng thất bại'}`);
+            toast.error(error.message || 'Thêm vào giỏ hàng thất bại');
         }
     };
 
@@ -150,7 +158,26 @@ const ProductDetail = ({ productId }: ProductDetailProps) => {
         });
     };
 
-    // Loading state
+    // Thêm hàm parse ở đầu file (trước hoặc trong component)
+function parseSpecsString(specsString: string): Array<{ key: string; value: string }> {
+    if (!specsString) return [];
+    const lines = specsString.split('\n').map(line => line.trim()).filter(Boolean);
+    const result: Array<{ key: string; value: string }> = [];
+    for (let i = 0; i < lines.length; i++) {
+        // Nếu dòng này có dấu :, là key
+        if (lines[i].includes(':')) {
+            const key = lines[i].replace(':', '').trim();
+            const value = lines[i + 1] ? lines[i + 1].trim() : '';
+            if (key && value) {
+                result.push({ key, value });
+                i++; // bỏ qua dòng value tiếp theo
+            }
+        }
+    }
+    return result;
+}
+
+// Loading state
     if (loading) {
         return (
             <div className="flex justify-center items-center h-64">
@@ -194,7 +221,7 @@ const ProductDetail = ({ productId }: ProductDetailProps) => {
             {/* 🎯 MAIN PRODUCT SECTION - 2 COLUMNS */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 mb-16">
 
-                {/* 🖼️ PRODUCT IMAGES - LEFT COLUMN */}
+                {/* 🖼️ PRODUCT IMAGES - LEFT COLUMN - FIX */}
                 <div className="product-images w-full flex flex-col items-center">
                     <div className="main-swiper w-full max-w-lg">
                         <Swiper
@@ -225,17 +252,24 @@ const ProductDetail = ({ productId }: ProductDetailProps) => {
                                                 aspectRatio: '3/2',
                                             }}
                                         >
-                                            <img
-                                                src={image.url}
-                                                alt={image.alt}
-                                                className="object-contain rounded max-w-[79%] max-h-[79%]"
-                                                onError={(e) => {
-                                                    const target = e.target as HTMLImageElement;
-                                                    target.src = '/images/products/placeholder.jpg';
-                                                }}
-                                            />
+                                            {/* FIX: Sử dụng Next.js Image component thay vì img tag */}
+                                            <div className="relative w-full h-full">
+                                                <Image
+                                                    src={image.url}
+                                                    alt={image.alt}
+                                                    fill
+                                                    className="object-contain rounded"
+                                                    sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                                                    priority={index === 0} // Ưu tiên load ảnh đầu tiên
+                                                    onError={(e) => {
+                                                        console.error('Error loading image:', image.url);
+                                                        const target = e.target as HTMLImageElement;
+                                                        target.src = '/images/products/placeholder.jpg';
+                                                    }}
+                                                />
+                                            </div>
                                             {image.isMain && (
-                                                <div className="absolute top-2 left-2 bg-blue-600 text-white px-2 py-1 rounded text-xs font-medium">
+                                                <div className="absolute top-2 left-2 bg-blue-600 text-white px-2 py-1 rounded text-xs font-medium z-10">
                                                     Ảnh chính
                                                 </div>
                                             )}
@@ -246,10 +280,10 @@ const ProductDetail = ({ productId }: ProductDetailProps) => {
                         </Swiper>
                     </div>
 
-                    {/* Image Counter */}
-                    <div className="mt-4 text-center text-sm text-gray-600">
+                    {/* FIX: BỎ Image Counter */}
+                    {/* <div className="mt-4 text-center text-sm text-gray-600">
                         <span>📸 {productImages.length} ảnh • 🔍 Click để phóng to</span>
-                    </div>
+                    </div> */}
                 </div>
 
                 {/* 📝 PRODUCT INFO - RIGHT COLUMN - SIMPLIFIED */}
@@ -268,13 +302,20 @@ const ProductDetail = ({ productId }: ProductDetailProps) => {
 
                     {/* Product Description */}
                     <div className="description mb-8">
-                        <h3 className="text-lg font-semibold mb-3 text-gray-900">Mô tả sản phẩm</h3>
-                        <div className="text-gray-700 leading-relaxed">
-                            {product.description.split('\n').map((line, index) => (
-                                <p key={index} className="mb-2">
-                                    {line}
-                                </p>
-                            ))}
+                        <h3 className="text-lg font-semibold mb-3 text-gray-900">Thông số kỹ thuật</h3>
+                        <div className="w-full max-w-xl">
+                            <table className="w-full text-sm">
+                                <tbody>
+                                    {parseSpecsString(product.description).map(({ key, value }) => (
+                                        <tr key={key}>
+                                            <td className="py-2 pr-4 font-medium text-gray-700 whitespace-nowrap">
+                                                {key.endsWith(':') ? key : key + ':'}
+                                            </td>
+                                            <td className="py-2 text-gray-900">{value}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
                         </div>
                     </div>
 
@@ -305,10 +346,10 @@ const ProductDetail = ({ productId }: ProductDetailProps) => {
                             </button>
                         </div>
 
-                        {/* Stock Info */}
-                        <div className="mt-4 text-center text-sm text-gray-600">
+                        {/* FIX: BỎ Stock Info */}
+                        {/* <div className="mt-4 text-center text-sm text-gray-600">
                             Còn lại: <span className="font-medium">{product.stock}</span> sản phẩm
-                        </div>
+                        </div> */}
                     </div>
                 </div>
             </div>
@@ -337,9 +378,7 @@ const ProductDetail = ({ productId }: ProductDetailProps) => {
                                                 height: '563px'
                                             }}
                                         >
-                                            {/* Link giống ProductItem */}
                                             <Link href={`/products/${relatedProduct.id}`}>
-                                                {/* Container có thêm space cho hover effect */}
                                                 <div className="flex justify-center mt-4">
                                                     <div 
                                                         className="relative bg-gray-100 overflow-hidden rounded-lg transition-all duration-300 ease-in-out group-hover:scale-110 group-hover:-translate-y-2" 
@@ -348,14 +387,17 @@ const ProductDetail = ({ productId }: ProductDetailProps) => {
                                                             height: '180px',
                                                         }}
                                                     >
+                                                        {/* FIX: Xử lý image URL tốt hơn */}
                                                         <Image 
-                                                            src={relatedProduct.imageUrl || '/placeholder.jpg'} 
+                                                            src={relatedProduct.imageUrl || relatedProduct.imageUrls?.[0] || '/images/products/placeholder.jpg'} 
                                                             alt={relatedProduct.name}
                                                             fill
                                                             className="object-cover"
+                                                            sizes="180px"
                                                             onError={(e) => {
+                                                                console.error('Error loading related product image:', relatedProduct.imageUrl);
                                                                 const target = e.target as HTMLImageElement;
-                                                                target.src = '/placeholder.jpg';
+                                                                target.src = '/images/products/placeholder.jpg';
                                                             }}
                                                         />
                                                     </div>

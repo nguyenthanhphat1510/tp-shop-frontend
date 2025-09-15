@@ -17,6 +17,7 @@ export interface Product {
     description: string;
     price: number;  // Will convert from string
     imageUrl: string;
+    imageUrls: string[]; // FIX: Thêm imageUrls array
     imagePublicId: string;
     categoryId: string;
     subcategoryId: string;
@@ -27,20 +28,26 @@ export interface Product {
 }
 
 // Helper function to transform product data
-const transformProduct = (item: any): Product => ({
-    id: item._id || item.id, // 🎯 Backend trả về _id, frontend cần id
-    name: item.name,
-    description: item.description,
-    price: typeof item.price === 'string' ? parseInt(item.price) : item.price || 0,
-    imageUrl: item.imageUrl || '',
-    imagePublicId: item.imagePublicId || '',
-    categoryId: item.categoryId,
-    subcategoryId: item.subcategoryId,
-    stock: item.stock || 0,
-    isActive: item.isActive === 'true' || item.isActive === true,
-    createdAt: item.createdAt,
-    updatedAt: item.updatedAt
-});
+const transformProduct = (item: any): Product => {
+    // FIX: Xử lý response có nested data
+    const productData = item.data || item; // Nếu có nested data thì lấy data, không thì lấy item
+    
+    return {
+        id: productData._id || productData.id, // 🎯 Backend trả về _id, frontend cần id
+        name: productData.name,
+        description: productData.description,
+        price: typeof productData.price === 'string' ? parseInt(productData.price) : productData.price || 0,
+        imageUrl: productData.imageUrl || (productData.imageUrls && productData.imageUrls[0]) || '',
+        imageUrls: productData.imageUrls || [], // FIX: Thêm imageUrls
+        imagePublicId: productData.imagePublicId || '',
+        categoryId: productData.categoryId,
+        subcategoryId: productData.subcategoryId,
+        stock: productData.stock || 0,
+        isActive: productData.isActive === 'true' || productData.isActive === true,
+        createdAt: productData.createdAt,
+        updatedAt: productData.updatedAt
+    };
+};
 
 // Product Service
 export const productService = {
@@ -57,6 +64,7 @@ export const productService = {
             
             console.log('✅ Transformed products:', products);
             return products;
+            
             
         } catch (error: unknown) {
             console.error('❌ Error fetching products:', error);
@@ -82,7 +90,7 @@ export const productService = {
             
             console.log('📦 Raw API Response for product:', response.data);
             
-            // Transform single product
+            // FIX: Xử lý response có nested structure
             const product: Product = transformProduct(response.data);
             
             console.log('✅ Transformed product:', product);

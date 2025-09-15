@@ -3,6 +3,8 @@ import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { cartService } from '@/services';
+import { useAuth } from '@/contexts/AuthContext';
+import { toast } from 'react-toastify';
 
 interface CartItem {
     id: string;
@@ -34,6 +36,7 @@ const Cart = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [promoCode, setPromoCode] = useState('');
+    const { setCartCount } = useAuth();
 
     useEffect(() => {
         fetchCartData();
@@ -91,6 +94,8 @@ const Cart = () => {
                 selectedItems: totalItems,
                 selectedPrice: totalPrice
             });
+             // ✅ Cập nhật số lượng mặt hàng cho context
+            setCartCount(transformedItems.length);
 
         } catch (err: any) {
             console.error('❌ Error fetching cart:', err);
@@ -153,11 +158,18 @@ const Cart = () => {
             const result = await response.json();
             console.log('📡 API Response:', result);
             
-            if (!result.success) throw new Error(result.message || 'Lỗi cập nhật số lượng');
+            if (!result.success) {
+                // Nếu là lỗi tối đa 3 sản phẩm thì chỉ hiện toast, không throw
+                if (result.message?.includes('tối đa 3 sản phẩm')) {
+                    toast.warning(result.message);
+                    return;
+                }
+                throw new Error(result.message || 'Lỗi cập nhật số lượng');
+            }
             await fetchCartData();
         } catch (err: any) {
             console.error('❌ Error updating quantity:', err);
-            alert(err.message || 'Không thể cập nhật số lượng');
+            toast.error(err.message || 'Không thể cập nhật số lượng');
         }
     };
 
@@ -165,15 +177,34 @@ const Cart = () => {
         if (window.confirm('Bạn có chắc muốn xóa sản phẩm này khỏi giỏ hàng?')) {
             try {
                 const token = typeof window !== 'undefined' ? localStorage.getItem('token') || localStorage.getItem('accessToken') : null;
+                
+                // FIX: Tìm item để lấy productId
+                const item = cart.items.find(item => item.id === itemId);
+                if (!item) {
+                    console.error('❌ Item not found in frontend cart:', itemId);
+                    return;
+                }
+
+                console.log('🗑️ Debug remove info:', {
+                    itemId,
+                    productId: item.productId,
+                    item
+                });
+
                 const headers = {
                     'Content-Type': 'application/json',
                     ...(token ? { Authorization: `Bearer ${token}` } : {})
                 };
-                const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/cart/remove/${itemId}`, {
+
+                // FIX: Sử dụng productId thay vì itemId
+                const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/cart/remove/${item.productId}`, {
                     method: 'DELETE',
                     headers
                 });
+
                 const result = await response.json();
+                console.log('📡 Remove API Response:', result);
+                
                 if (!result.success) throw new Error(result.message || 'Lỗi xóa sản phẩm');
                 await fetchCartData();
             } catch (err: any) {

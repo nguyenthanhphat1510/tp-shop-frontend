@@ -1,153 +1,5 @@
-import axios from 'axios';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
-
-// ✅ Secure token manager
-class TokenManager {
-    // XÓA biến RAM
-    // private static accessToken: string = '';
-
-    // Lưu access token vào localStorage
-    static setAccessToken(token: string) {
-        localStorage.setItem('accessToken', token);
-    }
-
-    static getAccessToken(): string {
-        return localStorage.getItem('accessToken') || '';
-    }
-
-    static clearAccessToken() {
-        localStorage.removeItem('accessToken');
-    }
-    
-    // Refresh Token - localStorage với encryption (fallback)
-    static setRefreshToken(token: string) {
-        try {
-            // ✅ Simple encryption (có thể dùng crypto-js cho phức tạp hơn)
-            const encoded = btoa(token + '|' + Date.now());
-            localStorage.setItem('rt', encoded);
-        } catch (error) {
-            console.error('Error storing refresh token:', error);
-        }
-    }
-    
-    static getRefreshToken(): string | null {
-        try {
-            const encoded = localStorage.getItem('rt');
-            if (!encoded) return null;
-            
-            const decoded = atob(encoded);
-            const [token] = decoded.split('|');
-            return token;
-        } catch (error) {
-            console.error('Error retrieving refresh token:', error);
-            localStorage.removeItem('rt');
-            return null;
-        }
-    }
-    
-    static clearRefreshToken() {
-        localStorage.removeItem('rt');
-    }
-    
-    static clearAll() {
-        this.clearAccessToken();
-        this.clearRefreshToken();
-        localStorage.removeItem('user');
-    }
-}
-
-// Create axios instance
-const apiClient = axios.create({
-    baseURL: API_URL,
-    timeout: 10000,
-    headers: {
-        'Content-Type': 'application/json',
-    }
-});
-
-// ✅ Request interceptor - Thêm access token
-apiClient.interceptors.request.use((config) => {
-    const token = TokenManager.getAccessToken();
-    if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-});
-
-// ✅ Response interceptor - Auto refresh
-apiClient.interceptors.response.use(
-    (response) => response,
-    async (error) => {
-        const originalRequest = error.config;
-        
-        if (error.response?.status === 401 && !originalRequest._retry) {
-            originalRequest._retry = true;
-            
-            try {
-                const refreshToken = TokenManager.getRefreshToken();
-                if (!refreshToken) {
-                    throw new Error('No refresh token');
-                }
-                
-                console.log('🔄 Access token expired, refreshing...');
-                
-                const response = await axios.post(`${API_URL}/auth/refresh`, {
-                    refreshToken
-                });
-                
-                if (response.data.success) {
-                    const { token, refreshToken: newRefreshToken } = response.data;
-                    
-                    // Lưu tokens mới
-                    TokenManager.setAccessToken(token);
-                    if (newRefreshToken) {
-                        TokenManager.setRefreshToken(newRefreshToken);
-                    }
-                    
-                    // Retry request với token mới
-                    originalRequest.headers.Authorization = `Bearer ${token}`;
-                    return apiClient(originalRequest);
-                }
-                
-            } catch (refreshError) {
-                console.log('🚪 Refresh failed, redirecting to login');
-                TokenManager.clearAll();
-                window.location.href = '/login';
-            }
-        }
-        
-        return Promise.reject(error);
-    }
-);
-
-export interface User {
-    id: string;
-    name: string;
-    email: string;
-    role?: string;
-    createdAt?: string;
-    updatedAt?: string;
-}
-
-export interface LoginRequest {
-    email: string;
-    password: string;
-}
-
-export interface RegisterRequest {
-    name: string;
-    email: string;
-    password: string;
-}
-
-export interface AuthResponse {
-    success: boolean;
-    token?: string;
-    refreshToken?: string; // ✅ Thêm refresh token
-    user?: User;
-    message: string;
-}
+import { LoginRequest, RegisterRequest, User } from '@/types/auth';
+import apiClient, { TokenManager } from '../utils/apiClient';
 
 // Helper function
 const transformUser = (item: any): User => ({
@@ -159,25 +11,26 @@ const transformUser = (item: any): User => ({
     updatedAt: item.updatedAt
 });
 
-// ✅ Updated Auth Service
+// ✅ Complete Auth Service
 export const authService = {
-    login: async (credentials: LoginRequest): Promise<AuthResponse> => {
+    login: async (credentials: LoginRequest): Promise<Response> => {
         try {
-            console.log('🔍 Calling Login API:', `${API_URL}/auth/login`);
+            console.log('🔍 Calling Login API');
 
             const response = await apiClient.post('/auth/login', credentials);
             console.log('📦 Raw Login Response:', response.data);
 
             if (response.data.success && response.data.token && response.data.user) {
-                // ✅ Lưu cả 2 tokens
                 TokenManager.setAccessToken(response.data.token);
                 if (response.data.refreshToken) {
                     TokenManager.setRefreshToken(response.data.refreshToken);
                 }
                 
-                // Lưu user info
                 const user = transformUser(response.data.user);
                 localStorage.setItem('user', JSON.stringify(user));
+                
+                // Trigger AuthContext update
+                window.dispatchEvent(new Event('auth-login'));
                 
                 return {
                     success: true,
@@ -196,81 +49,180 @@ export const authService = {
         }
     },
 
-    register: async (userData: RegisterRequest): Promise<AuthResponse> => {
+    // ✅ THÊM: Register method
+    register: async (userData: RegisterRequest): Promise<Response> => {
         try {
-            console.log('🔍 Calling Register API:', `${API_URL}/auth/register`);
+            console.log('🔍 Calling Register API');
 
-            const response = await apiClient.post('/auth/register', {
-                email: userData.email,
-                password: userData.password,
-                fullName: userData.name
-            });
-
+            const response = await apiClient.post('/auth/register', userData);
             console.log('📦 Raw Register Response:', response.data);
 
-            return {
-                success: response.data.success,
-                token: response.data.token,
-                refreshToken: response.data.refreshToken,
-                user: response.data.user ? transformUser(response.data.user) : undefined,
-                message: response.data.message
-            };
+            if (response.data.success) {
+                // Nếu backend trả về token luôn sau khi register
+                if (response.data.token && response.data.user) {
+                    TokenManager.setAccessToken(response.data.token);
+                    if (response.data.refreshToken) {
+                        TokenManager.setRefreshToken(response.data.refreshToken);
+                    }
+                    
+                    const user = transformUser(response.data.user);
+                    localStorage.setItem('user', JSON.stringify(user));
+                    
+                    // Trigger AuthContext update
+                    window.dispatchEvent(new Event('auth-login'));
+                }
+                
+                return {
+                    success: true,
+                    token: response.data.token,
+                    refreshToken: response.data.refreshToken,
+                    user: response.data.user ? transformUser(response.data.user) : null,
+                    message: response.data.message || 'Đăng ký thành công'
+                };
+            }
+
+            throw new Error(response.data.message || 'Đăng ký thất bại');
 
         } catch (error: any) {
-            console.error('❌ Error during registration:', error);
+            console.error('❌ Error during register:', error);
             throw new Error(error.response?.data?.message || error.message || 'Đăng ký thất bại');
         }
     },
+logout: async (): Promise<void> => {
+    try {
+        await apiClient.post('/auth/logout');
+    } catch (error) {
+        console.error('Error during logout:', error);
+    } finally {
+        // ✅ Trực tiếp xóa mọi token khỏi localStorage
+        localStorage.removeItem('token');
+        localStorage.removeItem('accessToken'); // Loại bỏ key cũ nếu có
+        localStorage.removeItem('rt');
+        localStorage.removeItem('user');
+        
+        // Log để debug
+        console.log('🧹 Đã xóa tất cả tokens khỏi localStorage');
+        
+        TokenManager.clearAll();
+        
+        // Reset state của app khác nếu cần
+        sessionStorage.clear(); // Xóa cả session storage
+        
+        // Trigger AuthContext update
+        window.dispatchEvent(new Event('auth-logout'));
+    }
+},
 
-    getCurrentUser: async (): Promise<User> => {
+    // ✅ THÊM: Get current user method
+    getCurrentUser: async (): Promise<User | null> => {
         try {
-            const response = await apiClient.get('/auth/profile');
-            return transformUser(response.data.data || response.data);
+            console.log('🔍 Calling Get Current User API');
+
+            const response = await apiClient.get('/auth/me');
+            console.log('📦 Raw Current User Response:', response.data);
+
+            if (response.data.success && response.data.user) {
+                const user = transformUser(response.data.user);
+                localStorage.setItem('user', JSON.stringify(user));
+                return user;
+            }
+
+            return null;
+
         } catch (error: any) {
-            throw new Error(error.response?.data?.message || 'Lấy thông tin người dùng thất bại');
-        }
-    },
-
-    logout: async (): Promise<void> => {
-        try {
-            await apiClient.post('/auth/logout');
-        } catch (error) {
-            console.error('Error during logout:', error);
-        } finally {
-            TokenManager.clearAll();
-        }
-    },
-
-    refreshToken: async (): Promise<string> => {
-        const refreshToken = TokenManager.getRefreshToken();
-        if (!refreshToken) {
-            throw new Error('No refresh token available');
-        }
-
-        try {
-            const response = await apiClient.post('/auth/refresh', { refreshToken });
+            console.error('⚠️ Error getting current user:', error);
             
-            if (response.data.success) {
-                TokenManager.setAccessToken(response.data.token);
-                if (response.data.refreshToken) {
-                    TokenManager.setRefreshToken(response.data.refreshToken);
-                }
-                return response.data.token;
+            // ✅ CHỈ clear tokens nếu chắc chắn là unauthorized
+            if (error.response?.status === 401 && error.response?.data?.message?.includes('token')) {
+                console.log('🚪 Confirmed token invalid, clearing');
+                TokenManager.clearAll();
+                window.dispatchEvent(new Event('auth-logout'));
+            } else {
+                console.log('⚠️ Network/temporary error, not logging out');
             }
             
-            throw new Error('Refresh failed');
-        } catch (error: any) {
-            TokenManager.clearAll();
-            throw new Error('Phiên đăng nhập hết hạn');
+            return null;
         }
-    }
+    },
+
+    // ✅ THÊM: Refresh tokens method
+    refreshTokens: async (): Promise<boolean> => {
+        try {
+            const refreshToken = TokenManager.getRefreshToken();
+            if (!refreshToken) {
+                console.log('⚠️ No refresh token available');
+                return false; // ✅ Chỉ return false, không clear tokens ngay
+            }
+
+            console.log('🔄 Refreshing tokens...');
+
+            // ✅ Sử dụng apiClient để consistent với login thường
+            const response = await apiClient.post('/auth/refresh', {
+                refreshToken
+            });
+
+            if (response.data.success) {
+                const { token, refreshToken: newRefreshToken } = response.data;
+                
+                TokenManager.setAccessToken(token);
+                if (newRefreshToken) {
+                    TokenManager.setRefreshToken(newRefreshToken);
+                }
+                
+                // ✅ Update user info nếu có (giống login thường)
+                if (response.data.user) {
+                    const user = transformUser(response.data.user);
+                    localStorage.setItem('user', JSON.stringify(user));
+                    
+                    // ✅ Trigger event giống login thường
+                    window.dispatchEvent(new Event('auth-login'));
+                }
+                
+                console.log('✅ Tokens refreshed successfully');
+                return true;
+            }
+
+            return false;
+
+        } catch (error: any) {
+            console.error('⚠️ Error refreshing tokens:', error);
+            
+            // ✅ CHỈ clear tokens khi chắc chắn refresh token invalid
+            if (error.response?.status === 401 || error.response?.status === 403) {
+                console.log('🚪 Refresh token invalid, clearing');
+                TokenManager.clearAll();
+                window.dispatchEvent(new Event('auth-logout'));
+            } else {
+                console.log('⚠️ Network/temporary error, not clearing tokens');
+            }
+            
+            return false;
+        }
+    },
+
+    // ✅ THÊM: Check if user is authenticated
+    isAuthenticated: (): boolean => {
+        const token = TokenManager.getAccessToken();
+        const user = localStorage.getItem('user');
+        return !!(token && user);
+    },
+
+    // ✅ THÊM: Get stored user
+    getStoredUser: (): User | null => {
+        try {
+            const userData = localStorage.getItem('user');
+            return userData ? JSON.parse(userData) : null;
+        } catch (error) {
+            console.error('Error parsing stored user:', error);
+            return null;
+        }
+    },
 };
 
-// Export TokenManager for direct access if needed
 export { TokenManager };
 
 // Legacy functions for backward compatibility
-export const loginUser = async (credentials: LoginRequest): Promise<AuthResponse> => {
+export const loginUser = async (credentials: LoginRequest): Promise<Response> => {
     try {
         return await authService.login(credentials);
     } catch (error: unknown) {
@@ -279,7 +231,7 @@ export const loginUser = async (credentials: LoginRequest): Promise<AuthResponse
     }
 };
 
-export const registerUser = async (userData: RegisterRequest): Promise<AuthResponse> => {
+export const registerUser = async (userData: RegisterRequest): Promise<Response> => {
     try {
         return await authService.register(userData);
     } catch (error: unknown) {

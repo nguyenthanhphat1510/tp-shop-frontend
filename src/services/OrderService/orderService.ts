@@ -1,4 +1,4 @@
-import axios from 'axios';
+import apiClient from '../utils/apiClient';
 import { ApiResponse } from '../../types/auth';
 
 // Types for Order
@@ -54,28 +54,11 @@ export interface Order {
 }
 
 class OrderService {
-  private baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
-
-  private getAuthToken(): string | null {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('accessToken') || localStorage.getItem('token');
-    }
-    return null;
-  }
-
   // 📦 Tạo đơn hàng mới
   async createOrder(orderData: CreateOrderData): Promise<ApiResponse<Order>> {
     try {
-      const token = this.getAuthToken();
-      if (!token) throw new Error('Vui lòng đăng nhập để đặt hàng');
-
-      const response = await axios.post(`${this.baseUrl}/orders`, orderData, {
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}` // <-- BẮT BUỘC PHẢI CÓ DÒNG NÀY
-        }
-      });
-
+      // ✅ Không cần manual thêm token, interceptor tự động lo
+      const response = await apiClient.post('/orders', orderData);
       return response.data;
     } catch (error: any) {
       console.error('❌ Error creating order:', error);
@@ -86,16 +69,7 @@ class OrderService {
   // 📋 Lấy danh sách đơn hàng
   async getOrders(): Promise<ApiResponse<Order[]>> {
     try {
-      const token = this.getAuthToken();
-      if (!token) throw new Error('Vui lòng đăng nhập để xem đơn hàng');
-
-      const response = await axios.get(`${this.baseUrl}/orders`, {
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}` // <-- Bỏ comment dòng này!
-        }
-      });
-
+      const response = await apiClient.get('/orders/admin/all');
       return response.data;
     } catch (error: any) {
       console.error('❌ Error fetching orders:', error);
@@ -106,16 +80,7 @@ class OrderService {
   // 🔍 Lấy chi tiết đơn hàng
   async getOrderById(orderId: string): Promise<ApiResponse<Order>> {
     try {
-      const token = this.getAuthToken();
-      if (!token) throw new Error('Vui lòng đăng nhập để xem đơn hàng');
-
-      const response = await axios.get(`${this.baseUrl}/orders/${orderId}`, {
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}` // <-- Bỏ comment dòng này!
-        }
-      });
-
+      const response = await apiClient.get(`/orders/${orderId}`);
       return response.data;
     } catch (error: any) {
       console.error('❌ Error fetching order:', error);
@@ -126,16 +91,7 @@ class OrderService {
   // ❌ Hủy đơn hàng
   async cancelOrder(orderId: string, reason?: string): Promise<ApiResponse<Order>> {
     try {
-      const token = this.getAuthToken();
-      if (!token) throw new Error('Vui lòng đăng nhập để hủy đơn hàng');
-
-      const response = await axios.patch(`${this.baseUrl}/orders/${orderId}/cancel`, { reason }, {
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}` // <-- Bỏ comment dòng này!
-        }
-      });
-
+      const response = await apiClient.patch(`/orders/${orderId}/cancel`, { reason });
       return response.data;
     } catch (error: any) {
       console.error('❌ Error cancelling order:', error);

@@ -4,7 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import Link from 'next/link';
 
 const Navbar = () => {
-    const { isAuthenticated, user, setShowLoginModal, logout } = useAuth();
+    const { isAuthenticated, user, setShowLoginModal, logout, cartCount } = useAuth();
     const [showDropdown, setShowDropdown] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -36,10 +36,10 @@ const Navbar = () => {
                 
                 {/* Navigation Links */}
                 <nav className="hidden md:flex items-center space-x-12">
-                    <Link href="/categories/phone" className="text-white hover:text-red-200 transition-colors text-lg font-medium">
+                    <Link href="/dtdd" className="text-white hover:text-red-200 transition-colors text-lg font-medium">
                         Điện thoại
                     </Link>
-                    <Link href="/categories/laptop" className="text-white hover:text-red-200 transition-colors text-lg font-medium">
+                    <Link href="/laptop" className="text-white hover:text-red-200 transition-colors text-lg font-medium">
                         Laptop
                     </Link>
                 </nav>
@@ -103,10 +103,12 @@ const Navbar = () => {
                         <button className="flex items-center space-x-2 text-white hover:text-red-200 transition-colors relative">
                             <i className="fas fa-shopping-cart text-xl"></i>
                             <span className="text-lg font-medium">Giỏ hàng</span>
-                            {/* Badge số lượng sản phẩm */}
-                            <span className="absolute -top-2 -right-2 bg-yellow-400 text-red-600 text-xs font-bold rounded-full h-6 w-6 flex items-center justify-center">
-                                0
-                            </span>
+                            {/* Badge số lượng mặt hàng */}
+                            {cartCount > 0 && (
+                                <span className="absolute -top-2 -right-2 bg-yellow-400 text-red-600 text-xs font-bold rounded-full h-6 w-6 flex items-center justify-center">
+                                    {cartCount}
+                                </span>
+                            )}
                         </button>
                     </Link>
                 </div>

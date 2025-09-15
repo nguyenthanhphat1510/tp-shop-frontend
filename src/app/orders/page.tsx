@@ -32,6 +32,7 @@ const OrdersPage = () => {
             setLoading(true);
             const res = await orderService.getOrders();
             setOrders(res.data || []);
+            console.log('res', res)
         } catch (err: any) {
             alert(err.message || "Không thể tải danh sách đơn hàng");
         } finally {
@@ -55,13 +56,13 @@ const OrdersPage = () => {
             ) : (
                 <div className="space-y-4">
                     {orders.map((order) => (
-                        <Link key={order.id} href={`/orderdetail/${order.id}`}>
+                        <Link key={order._id} href={`/orders/${order._id}`}>
                             <div className="block bg-white rounded-xl shadow p-4 hover:shadow-lg transition">
                                 <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center">
                                     <div>
                                         <div className="font-semibold text-gray-800">
                                             Mã đơn hàng:{" "}
-                                            <span className="text-blue-600">{order.orderNumber || order.id}</span>
+                                            <span className="text-blue-600">{order.orderNumber || order._id}</span>
                                         </div>
                                         <div className="text-gray-500 text-sm">
                                             Ngày đặt: {order.createdAt ? new Date(order.createdAt).toLocaleString("vi-VN") : ""}
@@ -70,10 +71,10 @@ const OrdersPage = () => {
                                     <div className="mt-2 sm:mt-0">
                                         <span
                                             className={`inline-block px-3 py-1 rounded-full text-white text-sm font-medium shadow ${
-                                                statusColors[order.status] || "bg-gray-400"
+                                                statusColors[order.status?.toUpperCase()] || "bg-gray-400"
                                             }`}
                                         >
-                                            {statusLabels[order.status] || "Không xác định"}
+                                            {statusLabels[order.status?.toUpperCase()] || order.status || "Không xác định"}
                                         </span>
                                     </div>
                                 </div>
