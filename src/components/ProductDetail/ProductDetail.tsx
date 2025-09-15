@@ -1,5 +1,4 @@
 "use client";
-
 import React, { useState, useEffect } from 'react';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import { Navigation, Pagination, Zoom } from 'swiper/modules';
@@ -15,9 +14,9 @@ import 'swiper/css/navigation';
 import 'swiper/css/pagination';
 import 'swiper/css/zoom';
 
-import { Product, productService } from '@/services/ProductService/productService';
+import { Product, productService } from '@/services/productService/productService';
 
-interface ProductDetailProps {
+interface ProductDetailProps {  
     productId: string;
 }
 

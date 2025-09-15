@@ -2,7 +2,7 @@
 import React from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { Product } from '@/services/ProductService/productService';
+import { Product } from '@/services/productService/productService';
 
 type ProductItemProps = {
   product: Product; // 🎯 NHẬN: ProductItem nhận product từ component cha (ProductList)

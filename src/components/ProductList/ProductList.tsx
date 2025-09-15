@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 import ProductItem from '@/components/ProductItem/ProductItem';
-import { productService, Product } from '@/services/ProductService/productService';
+import { productService, Product } from '@/services/productService/productService';
 
 const ProductList = () => {
     const [products, setProducts] = useState<Product[]>([]);
