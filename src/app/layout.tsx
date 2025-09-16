@@ -11,6 +11,8 @@ export const metadata: Metadata = {
   title: "TpShop - Cửa hàng điện thoại",
   description: "Cửa hàng điện thoại và phụ kiện công nghệ chính hãng",
 };
+// Force dynamic for all pages
+export const dynamic = 'force-dynamic';
 
 export default function RootLayout({
   children,
