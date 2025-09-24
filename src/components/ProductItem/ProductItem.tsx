@@ -14,15 +14,30 @@ const ProductItem = ({ product }: ProductItemProps) => {
     // This is temporary - in real app you'd fetch category name from API
     const categoryMap: { [key: string]: string } = {
       '685cbd213f7b05b5d70b860f': 'Điện thoại',
+      '6890040ea32b9f9c88809b74': 'Điện thoại',
       // Add more category mappings as needed
     };
     return categoryMap[categoryId] || 'Sản phẩm';
   };
 
-  // Lấy ảnh đầu tiên hoặc placeholder
-  const firstImage = product.imageUrls && product.imageUrls.length > 0
-    ? product.imageUrls[0]
+  // ✅ LOGIC MỚI - Lấy từ variants
+  const variants = product.variants || [];
+  
+  // Lấy variant mặc định (variant rẻ nhất hoặc variant đầu tiên)
+  const defaultVariant = variants.length > 0 
+    ? variants.reduce((min, variant) => variant.price < min.price ? variant : min)
+    : null;
+
+  // Lấy ảnh từ variant mặc định
+  const firstImage = defaultVariant && defaultVariant.images && defaultVariant.images.length > 0
+    ? defaultVariant.images[0]
     : '/placeholder.jpg';
+
+  // Lấy giá từ variant mặc định
+  const price = defaultVariant ? defaultVariant.price : 0;
+
+  // Tính tổng stock từ tất cả variants
+  const stock = variants.reduce((total, variant) => total + (variant.stock || 0), 0);
 
   return (
     <div className="rounded-lg overflow-hidden transition-shadow group">
@@ -73,12 +88,12 @@ const ProductItem = ({ product }: ProductItemProps) => {
             
             <h3 className="font-semibold text-lg">{product.name}</h3>
             <p className="text-gray-600 line-clamp-2">{product.description}</p>
-            <p className="text-red-500 font-bold mt-2">{product.price.toLocaleString('vi-VN')} đ</p>
+            <p className="text-red-500 font-bold mt-2">{price.toLocaleString('vi-VN')} đ</p>
             
             {/* Stock info */}
             <div className="mt-2 flex justify-between items-center">
               <p className="text-gray-500 text-xs">
-                {product.stock > 0 ? `Còn lại: ${product.stock}` : 'Hết hàng'}
+                {stock > 0 ? `Còn lại: ${stock}` : 'Hết hàng'}
               </p>
               <div className={`w-2 h-2 rounded-full ${product.isActive ? 'bg-green-500' : 'bg-red-500'}`}></div>
             </div>

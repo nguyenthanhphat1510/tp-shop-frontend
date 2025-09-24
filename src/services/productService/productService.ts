@@ -1,51 +1,98 @@
 import axios from 'axios';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 
 // Create axios instance with config
 const apiClient = axios.create({
-  baseURL: API_URL,
-  timeout: 10000,
-  headers: {
-    'Content-Type': 'application/json',
-  }
+    baseURL: API_URL,
+    timeout: 10000,
+    headers: {
+        'Content-Type': 'application/json',
+    }
 });
+
+export interface ProductVariant {
+    _id: string;
+    storage?: string;     // "128GB", "256GB"
+    color: string;        // "Đen", "Trắng"
+    price: number;        // Giá variant
+    stock: number;        // Stock variant
+    images: string[];     // Array ảnh variant
+    isActive: boolean;
+}
 
 export interface Product {
     id: string;
     name: string;
     description: string;
-    price: number;  // Will convert from string
-    imageUrl: string;
-    imageUrls: string[]; // FIX: Thêm imageUrls array
-    imagePublicId: string;
     categoryId: string;
     subcategoryId: string;
-    stock: number;
-    isActive: boolean;  // Will convert from string
+    isActive: boolean;
     createdAt: string;
     updatedAt: string;
+    variants: ProductVariant[];
+
+    // ✅ COMPUTED FIELDS cho UI
+    defaultVariant?: ProductVariant;  // Variant mặc định (rẻ nhất)
+    minPrice?: number;                // Giá thấp nhất
+    maxPrice?: number;                // Giá cao nhất
+    defaultImage?: string;            // Ảnh mặc định
+    totalStock?: number;              // Tổng stock
+    availableColors?: string[];       // Danh sách màu
 }
 
 // Helper function to transform product data
 const transformProduct = (item: any): Product => {
-    // FIX: Xử lý response có nested data
-    const productData = item.data || item; // Nếu có nested data thì lấy data, không thì lấy item
-    
+    const productData = item.data || item;
+
+    // Transform variants
+    const variants: ProductVariant[] = (productData.variants || []).map((variant: any) => ({
+        _id: variant._id,
+        storage: variant.storage,
+        color: variant.color,
+        price: variant.price,
+        stock: variant.stock,
+        images: variant.images || [],
+        isActive: variant.isActive
+    }));
+
+    // ✅ TÍNH TOÁN THÔNG TIN MẶC ĐỊNH theo style TheGioiDiDong
+    const defaultVariant = variants.length > 0
+        ? variants.reduce((min, variant) => variant.price < min.price ? variant : min)
+        : undefined;
+
+    const minPrice = variants.length > 0
+        ? Math.min(...variants.map(v => v.price))
+        : 0;
+
+    const maxPrice = variants.length > 0
+        ? Math.max(...variants.map(v => v.price))
+        : 0;
+
+    const defaultImage = defaultVariant?.images[0] || '/placeholder.jpg';
+
+    const totalStock = variants.reduce((sum, v) => sum + v.stock, 0);
+
+    const availableColors = [...new Set(variants.map(v => v.color))];
+
     return {
-        id: productData._id || productData.id, // 🎯 Backend trả về _id, frontend cần id
+        id: productData._id || productData.id,
         name: productData.name,
         description: productData.description,
-        price: typeof productData.price === 'string' ? parseInt(productData.price) : productData.price || 0,
-        imageUrl: productData.imageUrl || (productData.imageUrls && productData.imageUrls[0]) || '',
-        imageUrls: productData.imageUrls || [], // FIX: Thêm imageUrls
-        imagePublicId: productData.imagePublicId || '',
         categoryId: productData.categoryId,
         subcategoryId: productData.subcategoryId,
-        stock: productData.stock || 0,
-        isActive: productData.isActive === 'true' || productData.isActive === true,
+        isActive: productData.isActive,
         createdAt: productData.createdAt,
-        updatedAt: productData.updatedAt
+        updatedAt: productData.updatedAt,
+        variants,
+
+        // ✅ COMPUTED FIELDS
+        defaultVariant,
+        minPrice,
+        maxPrice,
+        defaultImage,
+        totalStock,
+        availableColors
     };
 };
 
@@ -56,17 +103,40 @@ export const productService = {
         try {
             console.log('🔍 Calling API:', `${API_URL}/products`);
             const response = await apiClient.get('/products');
-            
+
             console.log('📦 Raw API Response:', response.data);
+
+            // ✅ XỬ LÝ RESPONSE STRUCTURE ĐÚNG
+            let productsData: any[] = [];
             
-            // Transform response to proper types
-            const products: Product[] = response.data.map(transformProduct);
-            
-            console.log('✅ Transformed products:', products);
+            if (response.data && response.data.success && Array.isArray(response.data.data)) {
+                // Backend trả về: { success: true, data: [...] }
+                productsData = response.data.data;
+                console.log('✅ Found products in response.data.data:', productsData.length);
+            } else if (Array.isArray(response.data)) {
+                // Direct array response
+                productsData = response.data;
+                console.log('✅ Found direct array response:', productsData.length);
+            } else {
+                console.error('❌ Unexpected response structure:', response.data);
+                throw new Error('Invalid response structure from API');
+            }
+
+            // ✅ Transform products
+            const products: Product[] = productsData.map((item, index) => {
+                try {
+                    console.log(`🔄 Transforming product ${index + 1}:`, item.name);
+                    return transformProduct(item);
+                } catch (error) {
+                    console.error(`❌ Error transforming product ${index + 1}:`, item, error);
+                    throw error;
+                }
+            });
+
+            console.log('✅ Successfully transformed products:', products.length);
             return products;
-            
-            
-        } catch (error: unknown) {
+
+        } catch (error) {
             console.error('❌ Error fetching products:', error);
             if (axios.isAxiosError(error) && error.response) {
                 console.error('❌ Response error:', error.response.data);
@@ -79,31 +149,40 @@ export const productService = {
     // 🎯 THÊM: Get product by ID
     getById: async (id: string): Promise<Product> => {
         try {
-            console.log('🔍 Calling API:', `${API_URL}/products/${id}`);
-            
-            // Validate ID trước khi gọi API
+            // Validate ID
             if (!id || id.trim().length === 0) {
                 throw new Error('Product ID is required');
             }
 
             const response = await apiClient.get(`/products/${id}`);
+
+            console.log('📦 GetById Response:', response.data);
+
+            // ✅ Handle wrapped response for getById too
+            let productData: any = null;
             
-            console.log('📦 Raw API Response for product:', response.data);
-            
-            // FIX: Xử lý response có nested structure
-            const product: Product = transformProduct(response.data);
-            
-            console.log('✅ Transformed product:', product);
+            if (response.data && response.data.success && response.data.data) {
+                // Backend trả về: { success: true, data: {...} }
+                productData = response.data.data;
+            } else if (response.data && !response.data.success) {
+                // Direct object response
+                productData = response.data;
+            } else {
+                console.error('❌ Unexpected getById response structure:', response.data);
+                throw new Error('Invalid response structure for getById');
+            }
+
+            const product: Product = transformProduct(productData);
             return product;
-            
-        } catch (error: unknown) {
+
+        } catch (error) {
             console.error('❌ Error fetching product by ID:', error);
-            
+
             if (axios.isAxiosError(error)) {
                 if (error.response) {
                     console.error('❌ Response error:', error.response.data);
                     console.error('❌ Response status:', error.response.status);
-                    
+
                     // Handle specific error status codes
                     switch (error.response.status) {
                         case 400:
@@ -121,7 +200,7 @@ export const productService = {
                     throw new Error('Lỗi không xác định');
                 }
             }
-            
+
             throw new Error(`Failed to fetch product: ${error}`);
         }
     }
