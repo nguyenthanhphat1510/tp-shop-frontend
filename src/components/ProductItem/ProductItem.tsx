@@ -20,13 +20,19 @@ const ProductItem = ({ product }: ProductItemProps) => {
     return categoryMap[categoryId] || 'Sản phẩm';
   };
 
-  // ✅ LOGIC MỚI - Lấy từ variants
+  // ✅ LOGIC HIỆN TẠI - Giữ nguyên
   const variants = product.variants || [];
-  
-  // Lấy variant mặc định (variant rẻ nhất hoặc variant đầu tiên)
   const defaultVariant = variants.length > 0 
     ? variants.reduce((min, variant) => variant.price < min.price ? variant : min)
     : null;
+
+  // ✅ THÊM MỚI: Hàm tạo URL với query parameters
+  const getProductUrl = () => {
+    if (defaultVariant) {
+      return `/products/${product.id}?color=${defaultVariant.color}&storage=${defaultVariant.storage}`;
+    }
+    return `/products/${product.id}`;
+  };
 
   // Lấy ảnh từ variant mặc định
   const firstImage = defaultVariant && defaultVariant.images && defaultVariant.images.length > 0
@@ -50,8 +56,8 @@ const ProductItem = ({ product }: ProductItemProps) => {
           height: '563px'
         }}
       >
-        {/* 🚀 TRUYỀN: Khi user click, truyền product.id qua URL */}
-        <Link href={`/products/${product.id}`}>
+        {/* 🚀 THAY ĐỔI: Dùng getProductUrl() */}
+        <Link href={getProductUrl()}>
           {/* 
             ⭐ QUAN TRỌNG: Đây là nơi TRUYỀN dữ liệu!
             - product.id được đưa vào URL: /products/507f1f77bcf86cd799439011

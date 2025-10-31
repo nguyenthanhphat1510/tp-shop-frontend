@@ -4,25 +4,22 @@ import { ApiResponse } from '../../types/auth';
 // Types for Order
 export interface OrderItem {
   productId: string;
+  variantId: string;  // ✅ THÊM variantId
   quantity: number;
 }
 
 export interface ShippingInfo {
   fullName: string;
-  email: string;
   phone: string;
   address: string;
-  city: string;
-  district: string;
-  ward: string;
+  city?: string;  // ✅ Optional vì backend có thể tự extract
 }
 
 export interface CreateOrderData {
   shippingInfo: ShippingInfo;
-  paymentMethod: 'cod' | 'momo' | 'zalopay';
+  paymentMethod: 'cod' | 'momo';  // ✅ Bỏ zalopay nếu chưa support
   note?: string;
-  createFromCart?: boolean;
-  items?: OrderItem[];
+  items: OrderItem[];  // ✅ Required, bỏ createFromCart
 }
 
 export interface Order {
@@ -57,11 +54,44 @@ class OrderService {
   // 📦 Tạo đơn hàng mới
   async createOrder(orderData: CreateOrderData): Promise<ApiResponse<Order>> {
     try {
-      // ✅ Không cần manual thêm token, interceptor tự động lo
+      console.log('🚀 OrderService: Creating order with data:', orderData);
+      
+      // ✅ VALIDATE payload trước khi gửi
+      if (!orderData.items || orderData.items.length === 0) {
+        throw new Error('Không có sản phẩm nào để đặt hàng');
+      }
+
+      // ✅ VALIDATE từng item
+      const invalidItems = orderData.items.filter(item => 
+        !item.productId || !item.variantId || !item.quantity || item.quantity <= 0
+      );
+
+      if (invalidItems.length > 0) {
+        console.error('❌ Invalid items found:', invalidItems);
+        throw new Error('Có sản phẩm trong đơn hàng không hợp lệ');
+      }
+
+      console.log('📤 Sending request to /api/orders with payload:', {
+        itemsCount: orderData.items.length,
+        paymentMethod: orderData.paymentMethod,
+        shippingInfo: orderData.shippingInfo,
+        items: orderData.items
+      });
+
       const response = await apiClient.post('/orders', orderData);
+      
+      console.log('✅ OrderService: Response received:', response.data);
+      
       return response.data;
     } catch (error: any) {
-      console.error('❌ Error creating order:', error);
+      console.error('❌ OrderService: Error creating order:', error);
+      console.error('❌ Error details:', {
+        message: error.message,
+        status: error.response?.status,
+        data: error.response?.data,
+        config: error.config
+      });
+      
       throw new Error(error.response?.data?.message || 'Không thể tạo đơn hàng');
     }
   }

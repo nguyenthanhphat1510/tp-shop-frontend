@@ -3,19 +3,12 @@ import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { cartService } from '@/services';
 import { orderService, CreateOrderData } from '@/services/OrderService/orderService';
 import { paymentService } from '@/services/PaymentService/paymentService';
+import { useCart } from '@/contexts/CartContext';
+import { toast } from 'react-toastify';
 
-// Định nghĩa các interface
-interface CartItem {
-    id: string;
-    productId: string;
-    name: string;
-    price: number;
-    quantity: number;
-    imageUrl: string;
-}
+// Bỏ interface CartItem ở đây, vì ta sẽ dùng interface từ CartContext
 
 interface ShippingInfo {
     fullName: string;
@@ -33,82 +26,79 @@ interface PaymentMethod {
 const Checkout = () => {
     const router = useRouter();
     
-    // States
-    const [cartItems, setCartItems] = useState<CartItem[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-    const [step, setStep] = useState(1); // 1: Shipping, 2: Payment, 3: Review
+    const { state, dispatch } = useCart();
+    const { items } = state;
+    console.log('🛒 Giỏ hàng hiện tại:', items);
+
+    // 1. TẤT CẢ CÁC STATE (Giữ nguyên)
+    const [isLoading, setIsLoading] = useState(true);
+    const [isProcessing, setIsProcessing] = useState(false);
+    const [step, setStep] = useState(1);
     const [totalPrice, setTotalPrice] = useState(0);
-    const [shippingFee, setShippingFee] = useState(0);
+    const [shippingFee, setShippingFee] = useState(30000);
     const [promoCode, setPromoCode] = useState('');
     const [discount, setDiscount] = useState(0);
     const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>('cod');
-
-    // Shipping info state (đã bỏ email, city, district, ward, notes)
     const [shippingInfo, setShippingInfo] = useState<ShippingInfo>({
         fullName: '',
         phone: '',
         address: ''
     });
 
-    // Dữ liệu mẫu cho phương thức thanh toán
     const paymentMethods: PaymentMethod[] = [
-        {
-            id: 'cod',
-            name: 'Thanh toán khi nhận hàng',
-            description: 'Thanh toán bằng tiền mặt khi nhận hàng',
-            icon: 'fas fa-money-bill-wave'
-        },
-        {
-            id: 'momo',
-            name: 'Ví MoMo',
-            description: 'Thanh toán qua ví điện tử MoMo',
-            icon: 'fas fa-wallet'
-        }
+        { id: 'cod', name: 'Thanh toán khi nhận hàng', description: 'Thanh toán bằng tiền mặt khi nhận hàng', icon: 'fas fa-money-bill-wave' },
+        { id: 'momo', name: 'Ví MoMo', description: 'Thanh toán qua ví điện tử MoMo', icon: 'fas fa-wallet' }
     ];
 
-    // Load cart data on component mount
+    // 2. TẤT CẢ CÁC useEffect (GOM LẠI MỘT CHỖ)
     useEffect(() => {
-        fetchCartData();
-    }, []);
-
-    // Tính tổng tiền mỗi khi cartItems hoặc shippingFee thay đổi
-    useEffect(() => {
-        const subtotal = cartItems.reduce((acc, item) => acc + (item.price * item.quantity), 0);
+        const subtotal = items.reduce((acc, item) => acc + (item.price * item.quantity), 0);
         setTotalPrice(subtotal + shippingFee - discount);
-    }, [cartItems, shippingFee, discount]);
+    }, [items, shippingFee, discount]);
 
-    // Mock function to fetch cart data
-    const fetchCartData = async () => {
-        try {
-            setLoading(true);
-
-            // Lấy dữ liệu thật từ cartService
-            const cartData = await cartService.getCart();
-            // Giả sử cartData.items là mảng sản phẩm
-            setCartItems(cartData.items || []);
-            setShippingFee(cartData.shippingFee || 30000);
-
-        } catch (err: any) {
-            console.error('❌ Error fetching cart:', err);
-            setError(err.message || 'Không thể tải giỏ hàng');
-        } finally {
-            setLoading(false);
+    useEffect(() => {
+        if (items !== undefined) {
+             setIsLoading(false);
         }
-    };
+    }, [items]);
 
-    // Xử lý thay đổi thông tin giao hàng
+    useEffect(() => {
+        // Dòng console.log để debug có thể đặt ở đây
+        console.log('🔍 Kiểm tra giỏ hàng:', { 
+            isLoading, 
+            itemCount: items.length, 
+            itemsData: items,
+            willRedirect: !isLoading && items.length === 0 
+        });
+        
+        if (!isLoading && items.length === 0) {
+            console.log('⚠️ CHUẨN BỊ CHUYỂN TRANG - Giỏ hàng trống!');
+            
+            // THÊM DELAY ĐỂ CÓ THỜI GIAN NHÌN CONSOLE
+            setTimeout(() => {
+                toast.info("Giỏ hàng của bạn đang trống, đang chuyển về trang sản phẩm.");
+                router.push('/products');
+            }, 20000); // Đợi 2 giây
+        } else if (!isLoading) {
+            console.log('✅ Giỏ hàng có dữ liệu, ở lại trang checkout');
+        }
+    }, [isLoading, items, router]);
+
+    // 3. RETURN CÓ ĐIỀU KIỆN (LUÔN ĐẶT SAU TẤT CẢ CÁC HOOK)
+    if (isLoading) {
+        return (
+            <div className="flex justify-center items-center h-screen">
+                <p>Đang tải thông tin đơn hàng...</p>
+            </div>
+        );
+    }
+
+    // Các hàm xử lý giao diện giữ nguyên...
     const handleShippingInfoChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
         setShippingInfo(prev => ({ ...prev, [name]: value }));
     };
-
-    // Xử lý thay đổi phương thức thanh toán
-    const handlePaymentMethodChange = (methodId: string) => {
-        setSelectedPaymentMethod(methodId);
-    };
-
-    // Xử lý áp dụng mã giảm giá
+    const handlePaymentMethodChange = (methodId: string) => setSelectedPaymentMethod(methodId);
     const handleApplyPromoCode = () => {
         if (promoCode === 'WELCOME10') {
             const discountAmount = Math.floor(totalPrice * 0.1); // Giảm 10%
@@ -122,8 +112,6 @@ const Checkout = () => {
             alert('Mã giảm giá không hợp lệ');
         }
     };
-
-    // Xử lý tiếp tục sang bước tiếp theo
     const handleNextStep = () => {
         if (step === 1) {
             // Validate shipping info
@@ -141,135 +129,121 @@ const Checkout = () => {
             setStep(3);
         }
     };
-
-    // Xử lý quay lại bước trước
     const handlePrevStep = () => {
         if (step > 1) {
             setStep(step - 1);
         }
     };
 
-    // Xử lý đặt hàng
+    // 5. TÁI CẤU TRÚC HÀM ĐẶT HÀNG `handlePlaceOrder`
     const handlePlaceOrder = async () => {
+        console.log('🚀 Starting order placement process...');
+        console.log('📦 Current cart items:', items);
+        
+        if (items.length === 0) {
+            console.log('❌ Order failed: Empty cart');
+            toast.error("Giỏ hàng trống, không thể đặt hàng!");
+            return;
+        }
+        
         try {
-            setLoading(true);
+            setIsProcessing(true);
+            console.log('⏳ Processing order...');
+
+            // ✅ VALIDATE dữ liệu cart items trước khi gửi
+            const invalidItems = items.filter(item => 
+                !item.productId || !item.variantId || !item.quantity || item.quantity <= 0
+            );
+            
+            if (invalidItems.length > 0) {
+                console.error('❌ Invalid items found in cart:', invalidItems);
+                toast.error("Có sản phẩm trong giỏ hàng không hợp lệ!");
+                return;
+            }
+
+            // ✅ VALIDATE shipping info
+            if (!shippingInfo.fullName || !shippingInfo.phone || !shippingInfo.address) {
+                console.error('❌ Missing shipping info:', shippingInfo);
+                toast.error("Vui lòng điền đầy đủ thông tin giao hàng!");
+                return;
+            }
+
+            // ✅ TẠO PAYLOAD ĐÚNG FORMAT VỚI BACKEND
+            const orderData: CreateOrderData = {
+                shippingInfo: {
+                    fullName: shippingInfo.fullName,
+                    phone: shippingInfo.phone,
+                    address: shippingInfo.address,
+                    city: shippingInfo.address // ✅ Tạm thời dùng address làm city
+                },
+                paymentMethod: selectedPaymentMethod as 'cod' | 'momo',
+                items: items.map(item => ({
+                    productId: item.productId,
+                    variantId: item.variantId, // ✅ QUAN TRỌNG: Gửi variantId
+                    quantity: item.quantity
+                })),
+                note: '' // ✅ Thêm note nếu cần
+            };
+
+            console.log('📝 Final order payload:', orderData);
+            console.log('📊 Order summary:', {
+                itemsCount: orderData.items.length,
+                totalQuantity: orderData.items.reduce((acc, item) => acc + item.quantity, 0),
+                paymentMethod: orderData.paymentMethod,
+                shippingInfo: orderData.shippingInfo
+            });
 
             if (selectedPaymentMethod === 'momo') {
-                // Thanh toán MoMo - không tạo đơn hàng trước
-                const momoRes = await paymentService.createMomoPaymentFromCart({
-                    cartItems: cartItems,
-                    shippingInfo: {
-                        fullName: shippingInfo.fullName,
-                        phone: shippingInfo.phone,
-                        address: shippingInfo.address
-                    },
-                    amount: totalPrice, // Thay đổi từ totalAmount thành totalPrice
-                    orderInfo: 'Thanh toán đơn hàng TpShop'
+                console.log('💳 Processing MoMo payment...');
+                
+                const momoRes = await paymentService.createMomoPayment({
+                    orderInfo: `Thanh toán đơn hàng TpShop`,
+                    amount: totalPrice,
+                    extraData: JSON.stringify(orderData)
                 });
 
                 if (momoRes.success && momoRes.data.payUrl) {
-                    // Chuyển đến trang thanh toán MoMo
+                    console.log('✅ MoMo payment URL created, redirecting...');
                     window.location.href = momoRes.data.payUrl;
                     return;
                 } else {
                     throw new Error(momoRes.message || 'Không thể tạo thanh toán MoMo');
                 }
             } else {
-                // Thanh toán COD - tạo đơn hàng ngay
-                const orderData: CreateOrderData = {
-                    shippingInfo: {
-                        fullName: shippingInfo.fullName,
-                        phone: shippingInfo.phone,
-                        address: shippingInfo.address
-                    },
-                    paymentMethod: selectedPaymentMethod as 'cod',
-                    createFromCart: true
-                };
-
+                console.log('💰 Processing COD payment...');
+                
+                // ✅ GỌI ORDER SERVICE VỚI PAYLOAD ĐÚNG
                 const response = await orderService.createOrder(orderData);
+                console.log('📤 Order service response:', response);
 
                 if (response.success) {
-                    router.push(`/order-success?orderId=${response.data.id}`);
+                    console.log('✅ Order created successfully:', response.data);
+                    toast.success("Đặt hàng thành công!");
+                    
+                    // ✅ DỌN DẸP GIỎ HÀNG SAU KHI ĐẶT HÀNG THÀNH CÔNG
+                    console.log('🧹 Clearing cart after successful order...');
+                    dispatch({ type: 'CLEAR_CART' });
+                    
+                    // ✅ REDIRECT với orderId từ response
+                    const orderId = response.data._id || response.data.id || 'unknown';
+                    console.log('🔄 Redirecting to success page with orderId:', orderId);
+                    router.push(`/order-success?orderId=${orderId}`);
                 } else {
                     throw new Error(response.message || 'Đặt hàng thất bại');
                 }
             }
         } catch (error: any) {
-            console.error('❌ Lỗi đặt hàng:', error);
-            alert(error.message || 'Không thể đặt hàng. Vui lòng thử lại.');
+            console.error('❌ Order placement error:', error);
+            toast.error(error.message || 'Không thể đặt hàng. Vui lòng thử lại.');
         } finally {
-            setLoading(false);
+            setIsProcessing(false);
+            console.log('🏁 Order placement process finished');
         }
     };
 
-    // Xử lý đặt hàng trực tiếp (Buy Now)
-    const handleBuyNow = async (productId: string, quantity: number = 1) => {
-        try {
-            setLoading(true);
-            
-            const orderData: CreateOrderData = {
-                shippingInfo: {
-                    fullName: shippingInfo.fullName,
-                    phone: shippingInfo.phone,
-                    address: shippingInfo.address
-                },
-                paymentMethod: selectedPaymentMethod as 'cod' | 'momo' | 'zalopay',
-                createFromCart: false,
-                items: [
-                    {
-                        productId,
-                        quantity
-                    }
-                ]
-            };
-            
-            const response = await orderService.createOrder(orderData);
-            
-            if (response.success) {
-                router.push(`/order-success?orderId=${response.data.id}`);
-            } else {
-                throw new Error(response.message || 'Đặt hàng thất bại');
-            }
-            
-        } catch (error: any) {
-            console.error('❌ Lỗi đặt hàng trực tiếp:', error);
-            alert(error.message || 'Không thể đặt hàng. Vui lòng thử lại.');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    // Loading state
-    if (loading && cartItems.length === 0) {
-        return (
-            <div className="max-w-7xl mx-auto px-4 py-8">
-                <div className="text-center py-16">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-                    <p className="text-gray-600">Đang tải thông tin...</p>
-                </div>
-            </div>
-        );
-    }
-
-    // Error state
-    if (error) {
-        return (
-            <div className="max-w-7xl mx-auto px-4 py-8">
-                <div className="text-center py-16">
-                    <div className="text-red-600 text-5xl mb-4">⚠️</div>
-                    <h2 className="text-xl font-bold text-gray-800 mb-2">Không thể tải thông tin</h2>
-                    <p className="text-gray-600 mb-4">{error}</p>
-                    <button 
-                        onClick={fetchCartData}
-                        className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-                    >
-                        Thử lại
-                    </button>
-                </div>
-            </div>
-        );
-    }
-
+    // Giao diện không cần trạng thái loading/error khi tải trang nữa
+    // ...
+    // Phần JSX của bạn giữ nguyên, chỉ cần đảm bảo nó dùng `items` thay vì `cartItems`
     return (
         <div className="max-w-7xl mx-auto px-4 py-8">
             <h1 className="text-2xl sm:text-3xl font-bold mb-6 text-gray-900">Thanh toán</h1>
@@ -457,13 +431,13 @@ const Checkout = () => {
                                 
                                 {/* Order Items */}
                                 <div>
-                                    <h3 className="font-medium text-gray-800 mb-2">Sản phẩm ({cartItems.length})</h3>
+                                    <h3 className="font-medium text-gray-800 mb-2">Sản phẩm ({items.length})</h3>
                                     <div className="divide-y divide-gray-200">
-                                        {cartItems.map((item) => (
-                                            <div key={item.id} className="py-4 flex">
+                                        {items.map((item) => (
+                                            <div key={item.variantId} className="py-4 flex"> {/* ✅ Fix: dùng variantId thay vì item.id */}
                                                 <div className="w-16 h-16 bg-gray-200 rounded border overflow-hidden flex-shrink-0">
                                                     <Image
-                                                        src={item.imageUrl || '/placeholder.jpg'}
+                                                        src={item.image || '/placeholder.jpg'} {/* ✅ Fix: dùng item.image thay vì item.imageUrl */}
                                                         alt={item.name}
                                                         width={64}
                                                         height={64}
@@ -514,10 +488,10 @@ const Checkout = () => {
                             ) : (
                                 <button
                                     onClick={handlePlaceOrder}
-                                    disabled={loading}
+                                    disabled={isProcessing}
                                     className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
-                                    {loading ? (
+                                    {isProcessing ? (
                                         <>
                                             <svg className="animate-spin h-5 w-5 mr-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
@@ -545,8 +519,8 @@ const Checkout = () => {
                         {/* Order Summary */}
                         <div className="space-y-3 mb-6">
                             <div className="flex justify-between text-sm">
-                                <span className="text-gray-600">Tạm tính ({cartItems.reduce((acc, item) => acc + item.quantity, 0)} sản phẩm):</span>
-                                <span className="font-medium">{cartItems.reduce((acc, item) => acc + (item.price * item.quantity), 0).toLocaleString('vi-VN')}đ</span>
+                                <span className="text-gray-600">Tạm tính ({items.reduce((acc, item) => acc + item.quantity, 0)} sản phẩm):</span>
+                                <span className="font-medium">{items.reduce((acc, item) => acc + (item.price * item.quantity), 0).toLocaleString('vi-VN')}đ</span>
                             </div>
                             <div className="flex justify-between text-sm">
                                 <span className="text-gray-600">Phí vận chuyển:</span>

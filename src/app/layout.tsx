@@ -6,6 +6,7 @@ import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import AuthModal from '@/components/Auth/AuthModal';
 import Chatbox from '@/components/Chatbox/Chatbox';
+import { CartProvider } from "@/contexts/CartContext";
 
 export const metadata: Metadata = {
   title: "TpShop - Cửa hàng điện thoại",
@@ -26,13 +27,14 @@ export default function RootLayout({
       </head>
       <body suppressHydrationWarning={true}>
         <AuthProvider>
-          <Navbar />
-          <Chatbox />
-          {children}
-          <AuthModal />
-           {/* ✅ Toast Container */}
-                    <ToastContainer
-                    />
+          <CartProvider>
+            <Navbar />
+            <Chatbox />
+            {children}
+            <AuthModal />
+            {/* ✅ Toast Container */}
+            <ToastContainer />
+          </CartProvider>
         </AuthProvider>
       </body>
     </html>
