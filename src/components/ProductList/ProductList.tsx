@@ -15,7 +15,7 @@ const ProductList = () => {
             setError(null);
             
             console.log('🚀 Starting to fetch products...');
-            const data = await productService.getAll();
+            const data = await productService.getNotOnSaleProducts();
             
             console.log('✅ Products received:', data.length);
             setProducts(data);

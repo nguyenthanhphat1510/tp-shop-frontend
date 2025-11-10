@@ -12,28 +12,24 @@ const apiClient = axios.create({
 });
 
 export interface ProductVariant {
-    _id: string;
+    id: string;
     productId: string;
     sku: string;
-    storage?: string;
+    storage: string;
     color: string;
     price: number;
-    discountPercent: number;  // ✅ Thêm field giảm giá
-    isOnSale: boolean;        // ✅ Thêm field sale
-    finalPrice: number;       // ✅ Giá sau giảm (computed từ getter)
-    savedAmount: number;      // ✅ Số tiền tiết kiệm (computed từ getter)
     stock: number;
     imageUrls: string[];
     imagePublicIds: string[];
+    images?: string[];
     isActive: boolean;
+    discountPercent: number;
+    isOnSale: boolean;
+    finalPrice: number;
+    savedAmount: number;
     sold: number;
     createdAt: string;
     updatedAt: string;
-}
-
-// ✅ Interface cho Sale Variant Response
-export interface SaleVariant extends ProductVariant {
-    productName?: string;  // Có thể có tên sản phẩm
 }
 
 export interface Product {
@@ -42,18 +38,15 @@ export interface Product {
     description: string;
     categoryId: string;
     subcategoryId: string;
+    variants: ProductVariant[];
     isActive: boolean;
     createdAt: string;
     updatedAt: string;
-    variants: ProductVariant[];
+}
 
-    // ✅ COMPUTED FIELDS cho UI
-    defaultVariant?: ProductVariant;
-    minPrice?: number;
-    maxPrice?: number;
-    defaultImage?: string;
-    totalStock?: number;
-    availableColors?: string[];
+// ✅ Interface cho Sale Variant Response
+export interface SaleVariant extends ProductVariant {
+    productName?: string;
 }
 
 // ✅ Interface cho Sale Products Response
@@ -62,7 +55,7 @@ export interface SaleProduct {
     variants: ProductVariant[];
 }
 
-// ✅ HELPER: Tính toán finalPrice và savedAmount (tương tự getter trong entity)
+// ✅ HELPER: Tính toán finalPrice và savedAmount
 const calculatePriceFields = (variant: any) => {
     const originalPrice = variant.price || 0;
     const discountPercent = variant.discountPercent || 0;
@@ -85,47 +78,44 @@ const transformProduct = (item: any): Product => {
 
     // Transform variants
     const variants: ProductVariant[] = (productData.variants || []).map((variant: any) => {
-        // ✅ Tính toán giá theo logic entity
         const { finalPrice, savedAmount } = calculatePriceFields(variant);
 
         return {
-            _id: variant._id,
+            id: variant._id,
             productId: variant.productId,
             sku: variant.sku,
             storage: variant.storage,
-            color: variant.color,   
+            color: variant.color,
             price: variant.price,
-            discountPercent: variant.discountPercent || 0,
-            isOnSale: variant.isOnSale || false,
-            finalPrice: finalPrice, // ✅ Computed từ logic getter
-            savedAmount: savedAmount, // ✅ Computed từ logic getter
             stock: variant.stock,
             imageUrls: variant.imageUrls || [],
             imagePublicIds: variant.imagePublicIds || [],
+            images: variant.images || [],
             isActive: variant.isActive,
+            discountPercent: variant.discountPercent || 0,
+            isOnSale: variant.isOnSale || false,
+            finalPrice: finalPrice,
+            savedAmount: savedAmount,
             sold: variant.sold || 0,
             createdAt: variant.createdAt,
             updatedAt: variant.updatedAt
         };
     });
 
-    // ✅ TÍNH TOÁN THÔNG TIN MẶC ĐỊNH theo style TheGioiDiDong
     const defaultVariant = variants.length > 0
         ? variants.reduce((min, variant) => variant.finalPrice < min.finalPrice ? variant : min)
         : undefined;
 
     const minPrice = variants.length > 0
-        ? Math.min(...variants.map(v => v.finalPrice)) // ✅ Dùng finalPrice thay vì price
+        ? Math.min(...variants.map(v => v.finalPrice))
         : 0;
 
     const maxPrice = variants.length > 0
-        ? Math.max(...variants.map(v => v.finalPrice)) // ✅ Dùng finalPrice thay vì price
+        ? Math.max(...variants.map(v => v.finalPrice))
         : 0;
 
-    const defaultImage = defaultVariant?.imageUrls?.[0] || '/placeholder.jpg'; // ✅ Fix field name
-
+    const defaultImage = defaultVariant?.imageUrls?.[0] || '/placeholder.jpg';
     const totalStock = variants.reduce((sum, v) => sum + v.stock, 0);
-
     const availableColors = [...new Set(variants.map(v => v.color))];
 
     return {
@@ -138,8 +128,6 @@ const transformProduct = (item: any): Product => {
         createdAt: productData.createdAt,
         updatedAt: productData.updatedAt,
         variants,
-
-        // ✅ COMPUTED FIELDS
         defaultVariant,
         minPrice,
         maxPrice,
@@ -151,7 +139,7 @@ const transformProduct = (item: any): Product => {
 
 // Product Service
 export const productService = {
-    // Get all products from your NestJS backend
+    // ✅ LẤY TẤT CẢ SẢN PHẨM
     getAll: async (): Promise<Product[]> => {
         try {
             console.log('🔍 Calling API:', `${API_URL}/products`);
@@ -159,15 +147,12 @@ export const productService = {
 
             console.log('📦 Raw API Response:', response.data);
 
-            // ✅ XỬ LÝ RESPONSE STRUCTURE ĐÚNG
             let productsData: any[] = [];
-            
+
             if (response.data && response.data.success && Array.isArray(response.data.data)) {
-                // Backend trả về: { success: true, data: [...] }
                 productsData = response.data.data;
                 console.log('✅ Found products in response.data.data:', productsData.length);
             } else if (Array.isArray(response.data)) {
-                // Direct array response
                 productsData = response.data;
                 console.log('✅ Found direct array response:', productsData.length);
             } else {
@@ -175,7 +160,6 @@ export const productService = {
                 throw new Error('Invalid response structure from API');
             }
 
-            // ✅ Transform products
             const products: Product[] = productsData.map((item, index) => {
                 try {
                     console.log(`🔄 Transforming product ${index + 1}:`, item.name);
@@ -199,10 +183,9 @@ export const productService = {
         }
     },
 
-    // 🔧 Fix getById - Đơn giản hóa
+    // ✅ LẤY SẢN PHẨM THEO ID
     getById: async (id: string): Promise<any> => {
         try {
-            // Validate ID
             if (!id || id.trim().length === 0) {
                 throw new Error('Product ID is required');
             }
@@ -211,8 +194,6 @@ export const productService = {
             const response = await apiClient.get(`/products/${id}`);
 
             console.log('📦 GetById Raw Response:', response.data);
-
-            // ✅ TRẢ VỀ TRỰC TIẾP response.data - để ProductDetail tự xử lý
             return response.data;
 
         } catch (error) {
@@ -223,7 +204,6 @@ export const productService = {
                     console.error('❌ Response error:', error.response.data);
                     console.error('❌ Response status:', error.response.status);
 
-                    // Handle specific error status codes
                     switch (error.response.status) {
                         case 400:
                             throw new Error('ID sản phẩm không hợp lệ');
@@ -245,6 +225,99 @@ export const productService = {
         }
     },
 
+    // ✅ ✨ MỚI: LẤY CHI TIẾT VARIANT + PRODUCT
+    getVariantDetail: async (variantId: string): Promise<{
+        variant: ProductVariant;
+        product: Product;
+    }> => {
+        try {
+            if (!variantId || variantId.trim().length === 0) {
+                throw new Error('Variant ID is required');
+            }
+
+            console.log('🔄 Calling getVariantDetail API:', `${API_URL}/products/variants/${variantId}`);
+            const response = await apiClient.get(`/products/variants/${variantId}`);
+
+            console.log('📦 GetVariantDetail Raw Response:', response.data);
+
+            if (!response.data || !response.data.success) {
+                throw new Error('Invalid response structure from API');
+            }
+
+            const { variant: rawVariant, product: rawProduct } = response.data.data;
+
+            // ✅ Transform variant data
+            const { finalPrice, savedAmount } = calculatePriceFields(rawVariant);
+
+            const variant: ProductVariant = {
+                id: rawVariant._id,
+                productId: rawVariant.productId,
+                sku: rawVariant.sku,
+                storage: rawVariant.storage,
+                color: rawVariant.color,
+                price: rawVariant.price,
+                stock: rawVariant.stock,
+                imageUrls: rawVariant.imageUrls || [],
+                imagePublicIds: rawVariant.imagePublicIds || [],
+                images: rawVariant.imageUrls || [], // Alias
+                isActive: rawVariant.isActive,
+                discountPercent: rawVariant.discountPercent || 0,
+                isOnSale: rawVariant.isOnSale || false,
+                finalPrice: finalPrice,
+                savedAmount: savedAmount,
+                sold: rawVariant.sold || 0,
+                createdAt: rawVariant.createdAt,
+                updatedAt: rawVariant.updatedAt
+            };
+
+            // ✅ Transform product data (basic info, không có variants)
+            const product: Product = {
+                id: rawProduct._id,
+                name: rawProduct.name,
+                description: rawProduct.description,
+                categoryId: rawProduct.categoryId,
+                subcategoryId: rawProduct.subcategoryId,
+                isActive: rawProduct.isActive,
+                createdAt: rawProduct.createdAt,
+                updatedAt: rawProduct.updatedAt,
+                variants: [] // Sẽ được thêm sau nếu cần
+            };
+
+            console.log('✅ Successfully transformed variant & product');
+            console.log('🎯 Variant:', `${variant.color} - ${variant.storage}`);
+            console.log('📦 Product:', product.name);
+
+            return { variant, product };
+
+        } catch (error) {
+            console.error('❌ Error fetching variant detail:', error);
+
+            if (axios.isAxiosError(error)) {
+                if (error.response) {
+                    console.error('❌ Response error:', error.response.data);
+                    console.error('❌ Response status:', error.response.status);
+
+                    switch (error.response.status) {
+                        case 400:
+                            throw new Error('ID variant không hợp lệ');
+                        case 404:
+                            throw new Error('Không tìm thấy variant');
+                        case 500:
+                            throw new Error('Lỗi server, vui lòng thử lại sau');
+                        default:
+                            throw new Error(`Lỗi ${error.response.status}: ${error.response.data.message || 'Unknown error'}`);
+                    }
+                } else if (error.request) {
+                    throw new Error('Không thể kết nối đến server');
+                } else {
+                    throw new Error('Lỗi không xác định');
+                }
+            }
+
+            throw new Error(`Failed to fetch variant detail: ${error}`);
+        }
+    },
+
     // ✅ LẤY DANH SÁCH VARIANTS ĐANG GIẢM GIÁ
     getSaleVariants: async (): Promise<SaleVariant[]> => {
         try {
@@ -253,15 +326,12 @@ export const productService = {
 
             console.log('📦 Sale Variants Raw Response:', response.data);
 
-            // ✅ XỬ LÝ RESPONSE STRUCTURE
             let variantsData: any[] = [];
-            
+
             if (response.data && response.data.success && Array.isArray(response.data.data)) {
-                // Backend trả về: { success: true, data: [...] }
                 variantsData = response.data.data;
                 console.log('✅ Found sale variants in response.data.data:', variantsData.length);
             } else if (Array.isArray(response.data)) {
-                // Direct array response
                 variantsData = response.data;
                 console.log('✅ Found direct array response:', variantsData.length);
             } else {
@@ -269,16 +339,14 @@ export const productService = {
                 throw new Error('Invalid response structure from API');
             }
 
-            // ✅ Transform variants
             const saleVariants: SaleVariant[] = variantsData.map((variant, index) => {
                 try {
                     console.log(`🔄 Transforming sale variant ${index + 1}:`, variant.sku);
-                    
-                    // ✅ Tính toán giá theo logic entity
+
                     const { finalPrice, savedAmount } = calculatePriceFields(variant);
 
                     return {
-                        _id: variant._id,
+                        id: variant._id,
                         productId: variant.productId,
                         sku: variant.sku,
                         storage: variant.storage,
@@ -286,8 +354,8 @@ export const productService = {
                         price: variant.price,
                         discountPercent: variant.discountPercent || 0,
                         isOnSale: variant.isOnSale || false,
-                        finalPrice: finalPrice, // ✅ Computed từ logic getter
-                        savedAmount: savedAmount, // ✅ Computed từ logic getter
+                        finalPrice: finalPrice,
+                        savedAmount: savedAmount,
                         stock: variant.stock,
                         imageUrls: variant.imageUrls || [],
                         imagePublicIds: variant.imagePublicIds || [],
@@ -295,7 +363,7 @@ export const productService = {
                         sold: variant.sold || 0,
                         createdAt: variant.createdAt,
                         updatedAt: variant.updatedAt,
-                        productName: variant.productName // Nếu backend trả về
+                        productName: variant.productName
                     };
                 } catch (error) {
                     console.error(`❌ Error transforming sale variant ${index + 1}:`, variant, error);
@@ -324,9 +392,8 @@ export const productService = {
 
             console.log('📦 Sale Products Raw Response:', response.data);
 
-            // ✅ XỬ LÝ RESPONSE STRUCTURE
             let productsData: any[] = [];
-            
+
             if (response.data && response.data.success && Array.isArray(response.data.data)) {
                 productsData = response.data.data;
                 console.log('✅ Found sale products in response.data.data:', productsData.length);
@@ -338,7 +405,6 @@ export const productService = {
                 throw new Error('Invalid response structure from API');
             }
 
-            // ✅ Transform sale products
             const saleProducts: SaleProduct[] = productsData.map((item, index) => {
                 try {
                     console.log(`🔄 Transforming sale product ${index + 1}:`, item.product?.name);
@@ -363,10 +429,56 @@ export const productService = {
             }
             throw new Error('Failed to fetch sale products');
         }
+    },
+
+    // ✅ ✨ MỚI: LẤY DANH SÁCH SẢN PHẨM KHÔNG GIẢM GIÁ
+    getNotOnSaleProducts: async (): Promise<Product[]> => {
+        try {
+            console.log('🔍 Calling Not On Sale Products API:', `${API_URL}/products/not-on-sale`);
+            const response = await apiClient.get('/products/not-on-sale');
+
+            console.log('📦 Not On Sale Products Raw Response:', response.data);
+
+            // ✅ XỬ LÝ RESPONSE STRUCTURE
+            let productsData: any[] = [];
+
+            if (response.data && response.data.success && Array.isArray(response.data.data)) {
+                productsData = response.data.data;
+                console.log('✅ Found not-on-sale products in response.data.data:', productsData.length);
+            } else if (Array.isArray(response.data)) {
+                productsData = response.data;
+                console.log('✅ Found direct array response:', productsData.length);
+            } else {
+                console.error('❌ Unexpected response structure:', response.data);
+                throw new Error('Invalid response structure from API');
+            }
+
+            // ✅ Transform products
+            const notOnSaleProducts: Product[] = productsData.map((item, index) => {
+                try {
+                    console.log(`🔄 Transforming not-on-sale product ${index + 1}:`, item.name);
+                    return transformProduct(item);
+                } catch (error) {
+                    console.error(`❌ Error transforming not-on-sale product ${index + 1}:`, item, error);
+                    throw error;
+                }
+            });
+
+            console.log('✅ Successfully transformed not-on-sale products:', notOnSaleProducts.length);
+            return notOnSaleProducts;
+
+        } catch (error) {
+            console.error('❌ Error fetching not-on-sale products:', error);
+            if (axios.isAxiosError(error) && error.response) {
+                console.error('❌ Response error:', error.response.data);
+                console.error('❌ Response status:', error.response.status);
+            }
+            throw new Error('Failed to fetch not-on-sale products');
+        }
     }
 };
 
-// Legacy function for backward compatibility
+// Legacy functions for backward compatibility
 export const getProducts = async (): Promise<Product[]> => {
     try {
         return await productService.getAll();
@@ -376,7 +488,6 @@ export const getProducts = async (): Promise<Product[]> => {
     }
 };
 
-// 🎯 THÊM: Legacy function for getById
 export const getProductById = async (id: string): Promise<Product | null> => {
     try {
         return await productService.getById(id);
@@ -386,7 +497,19 @@ export const getProductById = async (id: string): Promise<Product | null> => {
     }
 };
 
-// ✅ Legacy functions for sale data
+// ✅ ✨ MỚI: Legacy function cho getVariantDetail
+export const getVariantDetail = async (variantId: string): Promise<{
+    variant: ProductVariant;
+    product: Product;
+} | null> => {
+    try {
+        return await productService.getVariantDetail(variantId);
+    } catch (error: unknown) {
+        console.error('Error fetching variant detail:', error);
+        return null;
+    }
+};
+
 export const getSaleVariants = async (): Promise<SaleVariant[]> => {
     try {
         return await productService.getSaleVariants();
@@ -401,6 +524,16 @@ export const getSaleProducts = async (): Promise<SaleProduct[]> => {
         return await productService.getSaleProducts();
     } catch (error: unknown) {
         console.error('Error fetching sale products:', error);
+        return [];
+    }
+};
+
+// ✅ ✨ MỚI: Legacy function cho not-on-sale products
+export const getNotOnSaleProducts = async (): Promise<Product[]> => {
+    try {
+        return await productService.getNotOnSaleProducts();
+    } catch (error: unknown) {
+        console.error('Error fetching not-on-sale products:', error);
         return [];
     }
 };

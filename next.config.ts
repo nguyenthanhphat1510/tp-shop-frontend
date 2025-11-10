@@ -10,7 +10,15 @@ const nextConfig: NextConfig = {
         port: '',
         pathname: '/**',
       },
+      // ✅ THÊM VIA.PLACEHOLDER.COM
+      {
+        protocol: 'https',
+        hostname: 'via.placeholder.com',
+        port: '',
+        pathname: '/**',
+      },
     ],
+    domains: ['res.cloudinary.com'], // ✅ Thêm Cloudinary domain
   },
   eslint: {
     // Warning: This allows production builds to successfully complete even if
