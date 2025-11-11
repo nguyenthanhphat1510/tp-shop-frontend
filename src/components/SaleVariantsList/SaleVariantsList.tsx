@@ -1,8 +1,10 @@
 "use client";
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { productService, SaleVariant } from '@/services/productService/productService';
 
 const SaleVariantsList = () => {
+    // ... (Giữ nguyên toàn bộ state, useEffect, và các hàm fetch) ...
     const [saleVariants, setSaleVariants] = useState<SaleVariant[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -36,6 +38,12 @@ const SaleVariantsList = () => {
         fetchSaleVariants();
     };
 
+    // ✅ GET PRODUCT URL WITH VARIANTID
+    const getProductUrl = (variant: SaleVariant) => {
+        return `/products/${variant.productId}?variantId=${variant.id}`;
+    };
+
+    // ... (Giữ nguyên các phần Loading, Error, No sale variants) ...
     // Loading state
     if (loading) {
         return (
@@ -89,6 +97,7 @@ const SaleVariantsList = () => {
         );
     }
 
+
     return (
         <div className="w-full flex justify-center py-8">
             <div className="w-[1160px] px-4">
@@ -98,69 +107,81 @@ const SaleVariantsList = () => {
                     <p className="text-gray-600">Khuyến mãi hấp dẫn - Số lượng có hạn</p>
                 </div>
 
-                {/* Grid 5 columns */}
-                <div className="grid grid-cols-5 gap-4">
+                {/* FIX: Đổi từ 'grid' sang 'flex' để cuộn ngang */}
+                {/* Thêm 'overflow-x-auto' để cho phép cuộn */}
+                {/* Thêm 'pb-6' để chừa khoảng trống cho thanh cuộn (nếu nó xuất hiện) */}
+                <div className="flex overflow-x-auto gap-4 bg-[linear-gradient(5deg,_#cb1c22_67.61%,_#d9503f_95.18%)] p-4 rounded-lg pb-6">
                     {saleVariants.map((variant) => (
-                        <div key={variant._id} className="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow duration-200 overflow-hidden">
-                            {/* Sale Badge */}
-                            <div className="relative">
-                                <img 
-                                    src={variant.imageUrls[0] || '/placeholder.jpg'} 
-                                    alt={variant.sku}
-                                    className="w-full h-48 object-cover"
-                                />
-                                <div className="absolute top-2 left-2 bg-red-600 text-white px-2 py-1 rounded text-sm font-bold">
-                                    -{variant.discountPercent}%
-                                </div>
-                            </div>
-
-                            {/* Content */}
-                            <div className="p-4">
-                                <h3 className="font-medium text-gray-800 mb-2 line-clamp-2">
-                                    {variant.productName || variant.sku}
-                                </h3>
-                                
-                                <div className="text-sm text-gray-600 mb-2">
-                                    {variant.storage && <span>{variant.storage} - </span>}
-                                    <span>{variant.color}</span>
-                                </div>
-
-                                {/* Price */}
-                                <div className="mb-3">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-red-600 font-bold text-lg">
-                                            {variant.finalPrice.toLocaleString()}đ
-                                        </span>
-                                        <span className="text-gray-500 line-through text-sm">
-                                            {variant.price.toLocaleString()}đ
-                                        </span>
-                                    </div>
-                                    <div className="text-green-600 text-sm">
-                                        Tiết kiệm: {variant.savedAmount.toLocaleString()}đ
+                        <Link 
+                            key={variant.id} 
+                            href={getProductUrl(variant)}
+                            // FIX: Thêm 'flex-shrink-0' và set width
+                            // Width tính toán để hiển thị ~5 item (1160px - padding - gap) / 5
+                            className="block flex-shrink-0 w-[213px]"
+                        >
+                            <div className="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow duration-200 overflow-hidden cursor-pointer group">
+                                {/* Sale Badge */}
+                                <div className="relative">
+                                    <img
+                                        src={variant.imageUrls[0] || '/images/placeholder.jpg'}
+                                        alt={variant.productName || variant.sku}
+                                        className="w-full h-48 object-cover
+                                                   transform transition-transform duration-300 group-hover:scale-105"
+                                    />
+                                    <div className="absolute top-2 left-2 bg-red-600 text-white px-2 py-1 rounded text-sm font-bold shadow-md">
+                                        -{variant.discountPercent}%
                                     </div>
                                 </div>
 
-                                {/* Stock */}
-                                <div className="text-sm text-gray-600 mb-3">
-                                    Kho: {variant.stock} | Đã bán: {variant.sold}
-                                </div>
+                                {/* Content */}
+                                <div className="p-4">
+                                    <h3 className="font-medium text-gray-800 mb-2 line-clamp-2 min-h-[3rem]">
+                                        {variant.productName || variant.sku}
+                                    </h3>
+                                    
+                                    <div className="text-sm text-gray-600 mb-2">
+                                        {variant.storage && <span className="font-medium">{variant.storage}</span>}
+                                        {variant.storage && variant.color && <span> - </span>}
+                                        <span>{variant.color}</span>
+                                    </div>
 
-                                {/* Action Button */}
-                                <button className="w-full bg-red-600 text-white py-2 rounded-lg hover:bg-red-700 transition-colors duration-200 font-medium">
-                                    Mua ngay
-                                </button>
+                                    {/* Price */}
+                                    <div className="mb-3">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-red-600 font-bold text-lg">
+                                                {Number(variant.finalPrice).toLocaleString('vi-VN')}đ
+                                            </span>
+                                            <span className="text-gray-500 line-through text-sm">
+                                                {Number(variant.price).toLocaleString('vi-VN')}đ
+                                            </span>
+                                        </div>
+                                        <div className="text-green-600 text-sm font-medium">
+                                            Tiết kiệm: {Number(variant.savedAmount).toLocaleString('vi-VN')}đ
+                                        </div>
+                                    </div>
+
+                                    {/* Stock */}
+                                    <div className="text-sm text-gray-600 mb-3">
+                                        <span className={variant.stock > 0 ? 'text-green-600' : 'text-red-600'}>
+                                            Kho: {variant.stock}
+                                        </span>
+                                        <span className="mx-1">|</span>
+                                        <span>Đã bán: {variant.sold}</span>
+                                    </div>
+
+                                    {/* Action Button */}
+                                    <button 
+                                        className="w-full bg-red-600 text-white py-2 rounded-lg hover:bg-red-700 transition-colors duration-200 font-medium"
+                                    >
+                                        Mua ngay
+                                    </button>
+                                </div>
                             </div>
-                        </div>
+                        </Link>
                     ))}
                 </div>
 
-                {/* Load More Button */}
-                <div className="flex justify-center mt-8">
-                    <button className="bg-gray-200 text-gray-700 px-8 py-3 rounded-lg hover:bg-gray-300 transition-colors duration-200 font-medium">
-                        Xem thêm sản phẩm giảm giá
-                        <i className="fas fa-chevron-down ml-2"></i>
-                    </button>
-                </div>
+                {/* FIX: Đã xóa nút "Load More" */}
             </div>
         </div>
     );

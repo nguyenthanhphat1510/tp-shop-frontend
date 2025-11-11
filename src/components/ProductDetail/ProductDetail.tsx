@@ -17,14 +17,14 @@ import 'swiper/css/zoom';
 
 import { Product, ProductVariant, productService } from '@/services/productService/productService';
 
-interface ProductDetailProps {  
+interface ProductDetailProps {
     productId: string;
 }
 
 const ProductDetail = ({ productId }: ProductDetailProps) => {
     const router = useRouter();
     const searchParams = useSearchParams();
-    
+
     const [product, setProduct] = useState<Product | null>(null);
     const [allVariants, setAllVariants] = useState<ProductVariant[]>([]);
     const [loading, setLoading] = useState(true);
@@ -50,7 +50,7 @@ const ProductDetail = ({ productId }: ProductDetailProps) => {
         const variantId = searchParams.get('variantId');
         const colorParam = searchParams.get('color');
         const storageParam = searchParams.get('storage');
-        
+
         let targetVariant: ProductVariant | null = null;
 
         // ✅ OPTION 1: Tìm theo variantId (ưu tiên cao nhất)
@@ -61,8 +61,8 @@ const ProductDetail = ({ productId }: ProductDetailProps) => {
 
         // ✅ OPTION 2: Tìm theo color + storage
         if (!targetVariant && colorParam && storageParam) {
-            targetVariant = allVariants.find(v => 
-                v.color.toLowerCase() === colorParam.toLowerCase() && 
+            targetVariant = allVariants.find(v =>
+                v.color.toLowerCase() === colorParam.toLowerCase() &&
                 v.storage.toLowerCase() === storageParam.toLowerCase()
             ) || null;
             console.log('🔍 Looking for variant by color+storage:', colorParam, storageParam, targetVariant ? '✅ Found' : '❌ Not found');
@@ -70,7 +70,7 @@ const ProductDetail = ({ productId }: ProductDetailProps) => {
 
         // ✅ FALLBACK: Chọn variant rẻ nhất
         if (!targetVariant) {
-            targetVariant = allVariants.reduce((min, variant) => 
+            targetVariant = allVariants.reduce((min, variant) =>
                 variant.finalPrice < min.finalPrice ? variant : min
             );
             console.log('🎯 Using cheapest variant as fallback:', targetVariant.color, targetVariant.storage);
@@ -97,7 +97,7 @@ const ProductDetail = ({ productId }: ProductDetailProps) => {
             console.log('🔄 Fetching product with ID:', productId);
             const response = await productService.getById(productId);
             console.log('📦 Product fetch response:', response);
-            
+
             // ✅ XỬ LÝ RESPONSE
             if (response.success && response.data) {
                 const { product: productData, variants: variantsData } = response.data;
@@ -120,7 +120,7 @@ const ProductDetail = ({ productId }: ProductDetailProps) => {
                     const finalPrice = v.isOnSale && v.discountPercent > 0
                         ? Math.round(v.price * (1 - v.discountPercent / 100))
                         : v.price;
-                    
+
                     const savedAmount = v.price - finalPrice;
 
                     return {
@@ -178,7 +178,7 @@ const ProductDetail = ({ productId }: ProductDetailProps) => {
     // ✅ GET IMAGES FROM SELECTED VARIANT
     const getProductImages = () => {
         const images = [];
-        
+
         if (selectedVariant?.imageUrls && Array.isArray(selectedVariant.imageUrls) && selectedVariant.imageUrls.length > 0) {
             selectedVariant.imageUrls.forEach((url: string, index: number) => {
                 if (url && typeof url === 'string' && url.trim()) {
@@ -190,7 +190,7 @@ const ProductDetail = ({ productId }: ProductDetailProps) => {
                 }
             });
         }
-        
+
         // ✅ Fallback: Dùng local image
         if (images.length === 0) {
             images.push({
@@ -217,14 +217,14 @@ const ProductDetail = ({ productId }: ProductDetailProps) => {
     const handleVariantSelect = (variant: ProductVariant) => {
         setSelectedVariant(variant);
         setQuantity(1); // Reset quantity
-        
+
         // ✅ UPDATE URL (dùng variantId thay vì color+storage)
         const newSearchParams = new URLSearchParams();
         newSearchParams.set('variantId', variant.id);
-        
+
         const newUrl = `/products/${productId}?${newSearchParams.toString()}`;
         router.push(newUrl, { scroll: false });
-        
+
         console.log('🔄 Variant selected & URL updated:', {
             variantId: variant.id,
             color: variant.color,
@@ -315,24 +315,47 @@ const ProductDetail = ({ productId }: ProductDetailProps) => {
             }));
     };
 
-    // ✅ PARSE SPECS STRING
+    // ✅ PARSE SPECS STRING - FIX MULTILINE VALUES
     const parseSpecsString = (specsString: string): Array<{ key: string; value: string }> => {
         if (!specsString) return [];
+        
         const lines = specsString.split('\n').map(line => line.trim()).filter(Boolean);
         const result: Array<{ key: string; value: string }> = [];
         
+        let currentKey = '';
+        let currentValue = '';
+        
         for (let i = 0; i < lines.length; i++) {
-            if (lines[i].includes(':')) {
-                const [key, ...valueParts] = lines[i].split(':');
-                const value = valueParts.join(':').trim();
-                
-                if (key && value) {
-                    result.push({ 
-                        key: key.trim(), 
-                        value: value 
+            const line = lines[i];
+            
+            // ✅ Check if line contains ':' (is a key-value pair)
+            if (line.includes(':')) {
+                // ✅ Save previous key-value if exists
+                if (currentKey && currentValue) {
+                    result.push({
+                        key: currentKey,
+                        value: currentValue.trim()
                     });
                 }
+                
+                // ✅ Split new key-value
+                const colonIndex = line.indexOf(':');
+                currentKey = line.substring(0, colonIndex).trim();
+                currentValue = line.substring(colonIndex + 1).trim();
+            } else {
+                // ✅ Line không có ':' → append vào value của key trước đó
+                if (currentKey) {
+                    currentValue += (currentValue ? '\n' : '') + line;
+                }
             }
+        }
+        
+        // ✅ Push last key-value pair
+        if (currentKey && currentValue) {
+            result.push({
+                key: currentKey,
+                value: currentValue.trim()
+            });
         }
         
         return result;
@@ -367,7 +390,6 @@ const ProductDetail = ({ productId }: ProductDetailProps) => {
         );
     }
 
-    // Product not found
     if (!product) {
         return (
             <div className="text-center py-8">
@@ -384,7 +406,7 @@ const ProductDetail = ({ productId }: ProductDetailProps) => {
     const uniqueColors = getUniqueColors();
 
     return (
-        <div className="product-detail-container max-w-7xl mx-auto p-4">
+        <div className="product-detail-container max-w-7xl mx-auto p-4 bg-white">
             {/* 🎯 MAIN PRODUCT SECTION - 2 COLUMNS */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 mb-16">
 
@@ -401,7 +423,7 @@ const ProductDetail = ({ productId }: ProductDetailProps) => {
                             zoom={true}
                             modules={[Navigation, Pagination, Zoom]}
                             className="rounded-lg shadow-lg overflow-hidden bg-white"
-                            style={{ 
+                            style={{
                                 '--swiper-navigation-color': '#374151',
                                 '--swiper-pagination-color': '#374151',
                                 '--swiper-navigation-size': '28px',
@@ -409,12 +431,12 @@ const ProductDetail = ({ productId }: ProductDetailProps) => {
                                 width: '100%',
                                 maxWidth: '720px',
                             } as any}
-                            key={selectedVariant?.id} // ✅ Re-render when variant changes
+                            key={selectedVariant?.id}
                         >
                             {productImages.map((image, index) => (
                                 <SwiperSlide key={`${selectedVariant?.id}-${index}`}>
                                     <div className="swiper-zoom-container">
-                                        <div 
+                                        <div
                                             className="w-full h-full flex items-center justify-center relative bg-white"
                                             style={{ aspectRatio: '3/2' }}
                                         >
@@ -430,7 +452,7 @@ const ProductDetail = ({ productId }: ProductDetailProps) => {
                                                     onError={(e) => {
                                                         console.error('❌ Error loading image:', image.url);
                                                         const target = e.target as HTMLImageElement;
-                                                        target.src = '/images/placeholder.jpg';
+                                                        target.src = '/images/products/chatbox.png';
                                                     }}
                                                 />
                                             </div>
@@ -444,6 +466,27 @@ const ProductDetail = ({ productId }: ProductDetailProps) => {
                                 </SwiperSlide>
                             ))}
                         </Swiper>
+                    </div>
+
+                    {/* ✅ THÔNG SỐ KỸ THUẬT - DƯỚI HÌNH ẢNH */}
+                    <div className="description mt-8 w-full max-w-lg">
+                        <h3 className="text-lg font-semibold mb-3 text-gray-900">Thông số kỹ thuật</h3>
+                        <div className="w-full">
+                            <table className="w-full text-sm border border-gray-200 rounded-lg overflow-hidden">
+                                <tbody>
+                                    {parseSpecsString(product.description).map(({ key, value }, index) => (
+                                        <tr key={`${key}-${index}`} className={index % 2 === 0 ? 'bg-gray-50' : 'bg-white'}>
+                                            <td className="py-3 px-4 font-medium text-gray-700 align-top border-r border-gray-200" style={{ minWidth: '180px' }}>
+                                                {key}
+                                            </td>
+                                            <td className="py-3 px-4 text-gray-900 whitespace-pre-line">
+                                                {value}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
 
@@ -463,7 +506,7 @@ const ProductDetail = ({ productId }: ProductDetailProps) => {
                                 {uniqueStorages.map(storage => {
                                     const hasVariant = allVariants.some(v => v.storage === storage);
                                     const isSelected = selectedVariant?.storage === storage;
-                                    
+
                                     return (
                                         <button
                                             key={storage}
@@ -474,13 +517,12 @@ const ProductDetail = ({ productId }: ProductDetailProps) => {
                                                 }
                                             }}
                                             disabled={!hasVariant}
-                                            className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
-                                                isSelected
-                                                    ? 'bg-blue-500 text-white shadow-md'
-                                                    : hasVariant
+                                            className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${isSelected
+                                                ? 'bg-[#f1f8fe] text-[#2a83e9] border-[#bbddfd] shadow-md'
+                                                : hasVariant
                                                     ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                                                     : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                                            }`}
+                                                }`}
                                         >
                                             {storage}
                                         </button>
@@ -496,8 +538,7 @@ const ProductDetail = ({ productId }: ProductDetailProps) => {
                                 {uniqueColors.map(color => {
                                     const hasVariant = allVariants.some(v => v.color === color);
                                     const isSelected = selectedVariant?.color === color;
-                                    
-                                    // Map màu sang color code
+
                                     const colorMap: { [key: string]: string } = {
                                         'Đen': '#000000',
                                         'Trắng': '#FFFFFF',
@@ -514,9 +555,9 @@ const ProductDetail = ({ productId }: ProductDetailProps) => {
                                         'Titan Trắng': '#F5F5F5',
                                         'Titan Đen': '#2C2C2C',
                                     };
-                                    
+
                                     const bgColor = colorMap[color] || '#808080';
-                                    
+
                                     return (
                                         <button
                                             key={color}
@@ -527,21 +568,19 @@ const ProductDetail = ({ productId }: ProductDetailProps) => {
                                                 }
                                             }}
                                             disabled={!hasVariant}
-                                            className={`flex items-center gap-2 px-3 py-2 rounded-lg border-2 transition-all ${
-                                                isSelected
-                                                    ? 'border-blue-500 bg-blue-50'
-                                                    : hasVariant
+                                            className={`flex items-center gap-2 px-3 py-2 rounded-lg border-2 transition-all ${isSelected
+                                                ? 'bg-[#f1f8fe] border-[#bbddfd]'
+                                                : hasVariant
                                                     ? 'border-gray-300 hover:border-gray-400'
                                                     : 'border-gray-200 opacity-50 cursor-not-allowed'
-                                            }`}
-                                        >
-                                            <div 
-                                                className={`w-5 h-5 rounded-full border-2 ${
-                                                    bgColor === '#FFFFFF' ? 'border-gray-300' : 'border-transparent'
                                                 }`}
+                                        >
+                                            <div
+                                                className={`w-5 h-5 rounded-full border-2 ${bgColor === '#FFFFFF' ? 'border-gray-300' : 'border-transparent'
+                                                    }`}
                                                 style={{ backgroundColor: bgColor }}
                                             ></div>
-                                            <span className="text-sm font-medium text-gray-700">{color}</span>
+                                            <span className={`text-sm font-medium ${isSelected ? 'text-[#2a83e9]' : 'text-gray-700'}`}>{color}</span>
                                         </button>
                                     );
                                 })}
@@ -554,12 +593,12 @@ const ProductDetail = ({ productId }: ProductDetailProps) => {
                         <div className="price-section mb-6">
                             <div className="flex items-baseline gap-3 mb-2">
                                 <span className="text-4xl font-bold text-red-600">
-                                    {selectedVariant.finalPrice.toLocaleString('vi-VN')} đ
+                                    {Number(selectedVariant.finalPrice).toLocaleString('vi-VN')} đ
                                 </span>
                                 {selectedVariant.isOnSale && selectedVariant.discountPercent > 0 && (
                                     <>
                                         <span className="text-lg text-gray-500 line-through">
-                                            {selectedVariant.price.toLocaleString('vi-VN')} đ
+                                            {Number(selectedVariant.price).toLocaleString('vi-VN')} đ
                                         </span>
                                         <span className="bg-red-100 text-red-600 px-2 py-1 rounded text-sm font-bold">
                                             -{selectedVariant.discountPercent}%
@@ -568,37 +607,18 @@ const ProductDetail = ({ productId }: ProductDetailProps) => {
                                 )}
                             </div>
                             <div className="text-sm text-gray-600">
-                                {selectedVariant.color} • {selectedVariant.storage} • 
+                                {selectedVariant.color} • {selectedVariant.storage} •
                                 <span className={selectedVariant.stock > 0 ? 'text-green-600 font-medium' : 'text-red-600 font-medium'}>
                                     {' '}{selectedVariant.stock > 0 ? `Còn ${selectedVariant.stock} sản phẩm` : 'Hết hàng'}
                                 </span>
                             </div>
                             {selectedVariant.isOnSale && selectedVariant.savedAmount > 0 && (
                                 <div className="text-sm text-green-600 mt-1 font-medium">
-                                    Tiết kiệm: {selectedVariant.savedAmount.toLocaleString('vi-VN')} đ
+                                    Tiết kiệm: {Number(selectedVariant.savedAmount).toLocaleString('vi-VN')} đ
                                 </div>
                             )}
                         </div>
                     )}
-
-                    {/* Product Description */}
-                    <div className="description mb-8">
-                        <h3 className="text-lg font-semibold mb-3 text-gray-900">Thông số kỹ thuật</h3>
-                        <div className="w-full max-w-xl">
-                            <table className="w-full text-sm border border-gray-200 rounded-lg overflow-hidden">
-                                <tbody>
-                                    {parseSpecsString(product.description).map(({ key, value }, index) => (
-                                        <tr key={key} className={index % 2 === 0 ? 'bg-gray-50' : 'bg-white'}>
-                                            <td className="py-3 px-4 font-medium text-gray-700 whitespace-nowrap border-r border-gray-200">
-                                                {key}
-                                            </td>
-                                            <td className="py-3 px-4 text-gray-900">{value}</td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
 
                     {/* ✅ QUANTITY SELECTION */}
                     <div className="quantity-section mb-6">
@@ -630,11 +650,10 @@ const ProductDetail = ({ productId }: ProductDetailProps) => {
                         <div className="actions flex gap-4">
                             <button
                                 onClick={handleAddToCart}
-                                className={`flex-1 py-3 px-6 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 ${
-                                    selectedVariant && selectedVariant.stock > 0
-                                        ? 'bg-white text-blue-600 border-2 border-blue-600 hover:bg-blue-600 hover:text-white shadow-md hover:shadow-lg'
-                                        : 'bg-gray-200 text-gray-500 cursor-not-allowed border-2 border-gray-300'
-                                }`}
+                                className={`flex-1 py-3 px-6 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 ${selectedVariant && selectedVariant.stock > 0
+                                    ? 'bg-white text-blue-600 border-2 border-blue-600 hover:bg-blue-600 hover:text-white shadow-md hover:shadow-lg'
+                                    : 'bg-gray-200 text-gray-500 cursor-not-allowed border-2 border-gray-300'
+                                    }`}
                                 disabled={!selectedVariant || selectedVariant.stock === 0}
                             >
                                 {selectedVariant && selectedVariant.stock > 0 ? (
@@ -674,12 +693,12 @@ const ProductDetail = ({ productId }: ProductDetailProps) => {
                                     return (
                                         <div key={relatedProduct.id} className="rounded-lg overflow-hidden transition-shadow group">
                                             <Link href={`/products/${relatedProduct.id}${defaultVariant ? `?variantId=${defaultVariant.id}` : ''}`}>
-                                                <div 
+                                                <div
                                                     className="bg-white rounded-lg overflow-hidden hover:shadow-lg transition-all duration-300 border border-gray-200 p-4"
                                                 >
                                                     <div className="flex justify-center mb-3">
                                                         <div className="relative w-40 h-40 bg-gray-100 rounded-lg overflow-hidden group-hover:scale-105 transition-transform">
-                                                            <Image 
+                                                            <Image
                                                                 src={firstImage}
                                                                 alt={relatedProduct.name}
                                                                 fill
@@ -693,20 +712,20 @@ const ProductDetail = ({ productId }: ProductDetailProps) => {
                                                             />
                                                         </div>
                                                     </div>
-                                                    
+
                                                     <div>
                                                         <span className="inline-block bg-red-100 text-red-600 text-xs font-medium px-2 py-1 rounded-full mb-2">
                                                             {getCategoryName(relatedProduct.categoryId)}
                                                         </span>
-                                                        
+
                                                         <h3 className="font-semibold text-base line-clamp-2 mb-2 h-12">
                                                             {relatedProduct.name}
                                                         </h3>
-                                                        
+
                                                         <p className="text-red-500 font-bold text-lg mb-2">
                                                             {price.toLocaleString('vi-VN')} đ
                                                         </p>
-                                                        
+
                                                         <div className="flex justify-between items-center text-xs">
                                                             <span className="text-gray-500">
                                                                 {totalStock > 0 ? `Còn ${totalStock}` : 'Hết hàng'}
@@ -722,7 +741,7 @@ const ProductDetail = ({ productId }: ProductDetailProps) => {
                             </div>
 
                             <div className="flex justify-center mt-8">
-                                <Link 
+                                <Link
                                     href="/products"
                                     className="bg-gray-200 text-gray-700 px-8 py-3 rounded-lg hover:bg-gray-300 transition-colors duration-200 font-medium inline-flex items-center gap-2"
                                 >
