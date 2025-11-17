@@ -12,6 +12,7 @@ export const metadata: Metadata = {
   title: "TpShop - Cửa hàng điện thoại",
   description: "Cửa hàng điện thoại và phụ kiện công nghệ chính hãng",
 };
+
 // Force dynamic for all pages
 export const dynamic = 'force-dynamic';
 
@@ -21,18 +22,17 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="vi">
+    <html lang="vi" suppressHydrationWarning>
       <head>
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
       </head>
-      <body suppressHydrationWarning={true}>
+      <body suppressHydrationWarning>
         <AuthProvider>
           <CartProvider>
             <Navbar />
             <Chatbox />
             {children}
             <AuthModal />
-            {/* ✅ Toast Container */}
             <ToastContainer />
           </CartProvider>
         </AuthProvider>
