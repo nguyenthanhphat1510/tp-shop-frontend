@@ -2,6 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import Link from 'next/link';
+import SearchBar from '../SearchBar/SearchBar';
 
 const Navbar = () => {
     const { isAuthenticated, user, setShowLoginModal, logout, cartCount } = useAuth();
@@ -23,28 +24,31 @@ const Navbar = () => {
     }, []);
 
     return (
-        <header className="w-full h-[68px] shadow-lg" style={{background: 'linear-gradient(5deg, #cb1c22 67.61%, #d9503f 95.18%)'}}>
-            <div className="container mx-auto px-4 h-full flex items-center justify-between">
+        <header className="w-full shadow-lg" style={{background: 'linear-gradient(5deg, #cb1c22 67.61%, #d9503f 95.18%)'}}>
+            <div className="container mx-auto px-4 h-[68px] flex items-center gap-8">
                 {/* Logo */}
-                <div className="flex items-center">
-                    <Link href="/">
-                        <h1 className="text-3xl font-bold text-white cursor-pointer hover:text-red-200 transition-colors">
-                            TpShop
-                        </h1>
-                    </Link>
+                <Link href="/">
+                    <h1 className="text-3xl font-bold text-white cursor-pointer hover:text-red-200 transition-colors whitespace-nowrap mr-4">
+                        TpShop
+                    </h1>
+                </Link>
+
+                {/* ✅ SEARCH BAR - BÊN TRÁI - TĂNG KHOẢNG CÁCH */}
+                <div className="hidden md:flex flex-1 max-w-2xl mx-4">
+                    <SearchBar />
                 </div>
                 
-                {/* Navigation Links */}
-                <nav className="hidden md:flex items-center space-x-12">
-                    <Link href="/dtdd" className="text-white hover:text-red-200 transition-colors text-lg font-medium">
+                {/* ✅ NAVIGATION LINKS - BÊN PHẢI - TĂNG KHOẢNG CÁCH */}
+                <nav className="hidden md:flex items-center space-x-10 mr-8">
+                    <Link href="/dtdd" className="text-white hover:text-red-200 transition-colors text-lg font-medium whitespace-nowrap">
                         Điện thoại
                     </Link>
-                    <Link href="/laptop" className="text-white hover:text-red-200 transition-colors text-lg font-medium">
+                    <Link href="/laptop" className="text-white hover:text-red-200 transition-colors text-lg font-medium whitespace-nowrap">
                         Laptop
                     </Link>
                 </nav>
                 
-                {/* User Actions */}
+                {/* User Actions - TĂNG KHOẢNG CÁCH */}
                 <div className="flex items-center space-x-8">
                     {/* Auth Section */}
                     {isAuthenticated ? (
@@ -59,10 +63,10 @@ const Navbar = () => {
                                         {user?.name?.charAt(0).toUpperCase()}
                                     </span>
                                 </div>
-                                <span className="hidden lg:block text-white text-lg font-medium">
+                                <span className="hidden lg:block text-white text-base font-medium whitespace-nowrap">
                                     {user?.name}
                                 </span>
-                                <i className="fas fa-chevron-down ml-2 text-white"></i>
+                                <i className="fas fa-chevron-down text-white text-sm"></i>
                             </button>
                             {/* Dropdown menu */}
                             {showDropdown && (
@@ -91,21 +95,21 @@ const Navbar = () => {
                         /* Login Button */
                         <button 
                             onClick={() => setShowLoginModal(true)}
-                            className="flex items-center space-x-2 text-white hover:text-red-200 transition-colors"
+                            className="flex items-center space-x-2 text-white hover:text-red-200 transition-colors whitespace-nowrap"
                         >
-                            <i className="fas fa-user text-xl"></i>
-                            <span className="text-lg font-medium">Đăng nhập</span>
+                            <i className="fas fa-user text-lg"></i>
+                            <span className="hidden lg:inline text-base font-medium">Đăng nhập</span>
                         </button>
                     )}
                     
                     {/* Giỏ hàng */}
                     <Link href="/cart">
-                        <button className="flex items-center space-x-2 text-white hover:text-red-200 transition-colors relative">
-                            <i className="fas fa-shopping-cart text-xl"></i>
-                            <span className="text-lg font-medium">Giỏ hàng</span>
+                        <button className="flex items-center space-x-2 text-white hover:text-red-200 transition-colors relative whitespace-nowrap">
+                            <i className="fas fa-shopping-cart text-lg"></i>
+                            <span className="hidden lg:inline text-base font-medium">Giỏ hàng</span>
                             {/* Badge số lượng mặt hàng */}
                             {cartCount > 0 && (
-                                <span className="absolute -top-2 -right-2 bg-yellow-400 text-red-600 text-xs font-bold rounded-full h-6 w-6 flex items-center justify-center">
+                                <span className="absolute -top-2 -right-2 bg-yellow-400 text-red-600 text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
                                     {cartCount}
                                 </span>
                             )}
